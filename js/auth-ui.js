@@ -4,6 +4,27 @@
 (function () {
   let wired = false;
 
+  async function maybeExchangeCodeForSession() {
+    try {
+      // Supabase magic links often return with a PKCE code in the query string.
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      if (!code) return;
+
+      // Exchange code for a session (sets local storage session on this device)
+      const { error } = await supabase.auth.exchangeCodeForSession(
+        window.location.href,
+      );
+      if (error) console.log("exchangeCodeForSession error:", error);
+
+      // Clean up URL (remove ?code=... so refreshes are clean)
+      url.searchParams.delete("code");
+      window.history.replaceState({}, document.title, url.toString());
+    } catch (e) {
+      console.log("maybeExchangeCodeForSession failed:", e);
+    }
+  }
+
   async function getSession() {
     const {
       data: { session },
@@ -36,6 +57,9 @@
   async function init(opts = {}) {
     const { onChange } = opts;
     const { logoutBtn } = getEls();
+
+    // ✅ Handle magic-link / PKCE callback if present
+    await maybeExchangeCodeForSession();
 
     // Wire logout once
     if (!wired && logoutBtn) {

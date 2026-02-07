@@ -11,4 +11,6 @@ window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Example (custom domain): "https://what-to-do.com"
 //
 // This is used for magic-link redirects because local file:// origins break auth redirects.
-window.WTD_APP_ORIGIN = window.WTD_APP_ORIGIN || "";
+
+window.WTD_APP_ORIGIN = "https://jmdavis815-web.github.io/wtd";
+
