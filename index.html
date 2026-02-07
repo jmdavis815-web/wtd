@@ -47,8 +47,25 @@
       <ul id="myPlaces" class="list-group mt-3"></ul>
     </div>
 
-    <h3 class="mt-4">Active Places</h3>
-    <ul id="places" class="list-group mt-3"></ul>
+    <!-- Search-first places -->
+    <div class="mt-4">
+      <h3 class="mb-2">Find a place</h3>
+      <div class="row g-2">
+        <div class="col-12 col-md-8">
+          <input
+            id="placeSearch"
+            class="form-control"
+            placeholder="Search city / town (ex: Chicago, Longmeadow, Austin)"
+            autocomplete="off"
+          />
+          <div id="placesHint" class="form-text">
+            Start typing to see matching places.
+          </div>
+        </div>
+      </div>
+
+      <ul id="places" class="list-group mt-3"></ul>
+    </div>
 
     <div id="addPlaceCard" class="card mt-4 d-none">
       <div class="card-body">

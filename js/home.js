@@ -5,12 +5,17 @@
 
   const ul = document.getElementById("places");
 
+  const searchEl = document.getElementById("placeSearch");
+  const hintEl = document.getElementById("placesHint");
+
   const addCard = document.getElementById("addPlaceCard");
   const form = document.getElementById("placeForm");
   const msg = document.getElementById("placeMsg");
 
   // Holds the current auth session (or null). Must be declared before WTDAuth.init()
   let currentSession = null;
+  let lastSearch = "";
+  let searchTimer = null;
 
   // Use shared auth UI controller
   currentSession = await WTDAuth.init({
@@ -69,28 +74,67 @@
     });
   }
 
-  async function loadPlaces() {
-    ul.innerHTML = `<li class="list-group-item text-muted">Loading…</li>`;
+  function clearPlacesUI() {
+    if (!ul) return;
+    ul.innerHTML = "";
+  }
 
+  function showHint(text) {
+    if (hintEl) hintEl.textContent = text;
+  }
+
+  async function searchPlaces(q) {
+    if (!ul) return;
+
+    const query = (q || "").trim();
+    lastSearch = query;
+
+    if (!query) {
+      clearPlacesUI();
+      showHint("Start typing to see matching places.");
+      return;
+    }
+
+    if (query.length < 2) {
+      clearPlacesUI();
+      showHint("Type at least 2 characters.");
+      return;
+    }
+
+    ul.innerHTML = `<li class="list-group-item text-muted">Searching…</li>`;
+    showHint(`Searching for “${query}”…`);
+
+    // OR-search across name/admin1/country (PostgREST syntax)
+    const pattern = `%${query}%`;
     const { data, error } = await supabase
       .from("places")
       .select("id, name, admin1, country")
-      .order("name");
+      .or(
+        `name.ilike.${pattern},admin1.ilike.${pattern},country.ilike.${pattern}`,
+      )
+      .order("name")
+      .limit(25);
+
+    // If user typed more while this request was in flight, ignore stale results
+    if (lastSearch !== query) return;
 
     if (error) {
-      ul.innerHTML = `<li class="list-group-item text-danger">Could not load places: ${escapeHtml(
+      ul.innerHTML = `<li class="list-group-item text-danger">Could not search places: ${escapeHtml(
         error.message,
       )}</li>`;
+      showHint("Search error.");
       return;
     }
 
     if (!data?.length) {
-      ul.innerHTML = `<li class="list-group-item text-muted">No places yet.</li>`;
+      ul.innerHTML = `<li class="list-group-item text-muted">No matches.</li>`;
+      showHint("No matches. You can add it below (when logged in).");
       return;
     }
 
     ul.innerHTML = "";
-    data.forEach((p) => insertPlaceSorted(p));
+    data.forEach((p) => ul.appendChild(makeRow(p)));
+    showHint(`${data.length} match${data.length === 1 ? "" : "es"}.`);
   }
 
   function displayText(p) {
@@ -99,36 +143,22 @@
     }`;
   }
 
-  function sortKey(p) {
-    const n = (p.name || "").trim().toLowerCase();
-    const a = (p.admin1 || "").trim().toLowerCase();
-    const c = (p.country || "").trim().toLowerCase();
-    return `${n}|${a}|${c}`;
-  }
-
   function makeRow(p) {
     const li = document.createElement("li");
     li.className = "list-group-item";
-    li.dataset.sortKey = sortKey(p);
     li.innerHTML = `<a href="place.html?id=${p.id}">${escapeHtml(
       displayText(p),
     )}</a>`;
     return li;
   }
 
-  function insertPlaceSorted(p) {
-    if (ul.children.length === 1 && ul.textContent.includes("No places yet")) {
-      ul.innerHTML = "";
-    }
-
-    const li = makeRow(p);
-    const key = li.dataset.sortKey;
-
-    const kids = Array.from(ul.children);
-    const before = kids.find((el) => (el.dataset.sortKey || "") > key);
-
-    if (before) ul.insertBefore(li, before);
-    else ul.appendChild(li);
+  // Debounced search typing
+  if (searchEl) {
+    searchEl.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      const q = searchEl.value;
+      searchTimer = setTimeout(() => searchPlaces(q), 180);
+    });
   }
 
   form?.addEventListener("submit", async (e) => {
@@ -178,10 +208,15 @@
     document.getElementById("placeCountry").value = "";
     msg.textContent = "Added.";
 
-    insertPlaceSorted(data);
+    // If it matches the current search, show it immediately
+    if (searchEl && (searchEl.value || "").trim().length >= 2) {
+      await searchPlaces(searchEl.value);
+    }
   });
 
   // ✅ Initial load
   await loadMyPlaces();
-  await loadPlaces();
+  // No giant list: start empty until user searches
+  clearPlacesUI();
+  showHint("Start typing to see matching places.");
 })();
