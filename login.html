@@ -76,7 +76,29 @@
         }
 
         const email = emailEl.value.trim();
-        const redirectTo = `${window.location.origin}/index.html`;
+
+        function getAppOrigin() {
+          // Prefer explicit deployed origin
+          const explicit = (window.WTD_APP_ORIGIN || "").trim();
+          if (explicit && /^https?:\/\//i.test(explicit)) {
+            return explicit.replace(/\/+$/, "");
+          }
+
+          // Use window.location.origin when served over http(s)
+          const o = window.location.origin;
+          if (o && o !== "null" && !o.startsWith("file:")) return o;
+
+          return "";
+        }
+
+        const origin = getAppOrigin();
+        if (!origin) {
+          msgEl.textContent =
+            "Login link can’t be sent from file://. Set window.WTD_APP_ORIGIN in js/supabase.js to your deployed site (GitHub Pages / domain), then refresh.";
+          return;
+        }
+
+        const redirectTo = `${origin}/index.html`;
 
         btn.disabled = true;
         btn.textContent = "Sending…";

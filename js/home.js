@@ -9,13 +9,24 @@
   const form = document.getElementById("placeForm");
   const msg = document.getElementById("placeMsg");
 
+  // Holds the current auth session (or null). Must be declared before WTDAuth.init()
+  let currentSession = null;
+
+  // Use shared auth UI controller
+  currentSession = await WTDAuth.init({
+    onChange: async (session) => {
+      currentSession = session;
+      if (session) addCard?.classList.remove("d-none");
+      else addCard?.classList.add("d-none");
+
+      await loadMyPlaces();
+    },
+  });
+
   async function loadMyPlaces() {
     if (!myUl || !myWrap) return;
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
+    if (!currentSession) {
       myWrap.classList.add("d-none");
       myUl.innerHTML = "";
       return;
@@ -27,7 +38,7 @@
     const { data, error } = await supabase
       .from("follows")
       .select("place_id, places(id, name, admin1, country)")
-      .eq("user_id", session.user.id);
+      .eq("user_id", currentSession.user.id);
 
     if (error) {
       myUl.innerHTML = `<li class="list-group-item text-danger">Could not load My Places: ${escapeHtml(
@@ -120,22 +131,11 @@
     else ul.appendChild(li);
   }
 
-  async function renderAuthUI() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (session) addCard?.classList.remove("d-none");
-    else addCard?.classList.add("d-none");
-  }
-
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
     msg.textContent = "";
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
+    if (!currentSession) {
       msg.textContent = "Please log in to add places.";
       return;
     }
@@ -182,22 +182,6 @@
   });
 
   // ✅ Initial load
-  await renderAuthUI();
   await loadMyPlaces();
   await loadPlaces();
-
-  // ✅ Keep UI in sync with login/logout/magic link
-  supabase.auth.onAuthStateChange(async () => {
-    await renderAuthUI();
-    await loadMyPlaces();
-  });
 })();
-
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}

@@ -97,18 +97,21 @@
         </div>
         ${n.read_at ? "" : `<div class="badge bg-danger mt-2">NEW</div>`}
       `;
+      // ✅ Mark as read when the user clicks it (not just by opening the modal)
+      if (!n.read_at) {
+        a.addEventListener("click", async (e) => {
+          e.preventDefault();
+          await supabase
+            .from("notifications")
+            .update({ read_at: new Date().toISOString() })
+            .eq("id", n.id)
+            .is("read_at", null);
+          await refreshUnreadCount();
+          window.location.href = a.href;
+        });
+      }
       list.appendChild(a);
     });
-
-    // mark visible unread as read
-    const unreadIds = data.filter((x) => !x.read_at).map((x) => x.id);
-    if (unreadIds.length) {
-      await supabase
-        .from("notifications")
-        .update({ read_at: new Date().toISOString() })
-        .in("id", unreadIds)
-        .is("read_at", null);
-    }
 
     await refreshUnreadCount();
   }
@@ -136,12 +139,3 @@
   supabase.auth.onAuthStateChange(() => refreshUnreadCount());
   setInterval(refreshUnreadCount, 15000);
 })();
-
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
