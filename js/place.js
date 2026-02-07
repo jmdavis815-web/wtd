@@ -27,6 +27,11 @@ const createPostCard = document.getElementById("createPostCard");
 const postForm = document.getElementById("postForm");
 const postMsg = document.getElementById("postMsg");
 
+// Event time UI
+const eventTimeRow = document.getElementById("eventTimeRow");
+const eventStartEl = document.getElementById("eventStart");
+const eventEndEl = document.getElementById("eventEnd");
+
 const filterHint = document.getElementById("filterHint");
 const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
 
@@ -83,6 +88,66 @@ function modeLabel(m) {
   if (m === "bored") return "bored";
   if (m === "hungry") return "hungry";
   return "unsure";
+}
+
+function formatEventRange(starts_at, ends_at) {
+  if (!starts_at) return "";
+  const start = new Date(starts_at);
+  if (isNaN(start.getTime())) return "";
+
+  const dateFmt = new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const timeFmt = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const startDate = dateFmt.format(start);
+  const startTime = timeFmt.format(start);
+
+  if (!ends_at) {
+    return `${startDate} · ${startTime}`;
+  }
+
+  const end = new Date(ends_at);
+  if (isNaN(end.getTime())) {
+    return `${startDate} · ${startTime}`;
+  }
+
+  const endDate = dateFmt.format(end);
+  const endTime = timeFmt.format(end);
+
+  // Same day: "Fri, Jun 19 · 7:00 PM – 9:00 PM"
+  if (start.toDateString() === end.toDateString()) {
+    return `${startDate} · ${startTime} – ${endTime}`;
+  }
+
+  // Different days: "Fri, Jun 19 · 7:00 PM → Sat, Jun 20 · 12:30 AM"
+  return `${startDate} · ${startTime} → ${endDate} · ${endTime}`;
+}
+
+function toIsoFromDatetimeLocal(v) {
+  // v like "2026-06-19T19:00" (no timezone)
+  // JS treats it as local time, then toISOString() converts to UTC
+  if (!v || !String(v).trim()) return null;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function setEventTimeUi(typeValue) {
+  const t = (typeValue || "general").toLowerCase();
+  const isEvent = t === "event";
+  if (eventTimeRow) eventTimeRow.classList.toggle("d-none", !isEvent);
+
+  // If switching away from event, clear values to avoid accidental inserts later
+  if (!isEvent) {
+    if (eventStartEl) eventStartEl.value = "";
+    if (eventEndEl) eventEndEl.value = "";
+  }
 }
 
 function setGhButtonsActive(mode) {
@@ -270,6 +335,15 @@ async function showNextSuggestion() {
 
   placeNameEl.textContent = place.name;
 
+  // Show/hide event time fields based on type select
+  const typeSelect = document.getElementById("type");
+  if (typeSelect) {
+    setEventTimeUi(typeSelect.value);
+    typeSelect.addEventListener("change", () =>
+      setEventTimeUi(typeSelect.value),
+    );
+  }
+
   // Follow button click
   followBtn?.addEventListener("click", async () => {
     if (!currentSession) {
@@ -317,6 +391,26 @@ async function showNextSuggestion() {
     const rawTopic = document.getElementById("topic")?.value;
     const topic = rawTopic && rawTopic.trim() ? rawTopic : "everyday";
 
+    const isEvent = (type || "general").toLowerCase() === "event";
+    const starts_at = isEvent
+      ? toIsoFromDatetimeLocal(eventStartEl?.value)
+      : null;
+    const ends_at = isEvent ? toIsoFromDatetimeLocal(eventEndEl?.value) : null;
+
+    if (isEvent && !starts_at) {
+      postMsg.textContent = "Events need a start date/time.";
+      return;
+    }
+    if (
+      isEvent &&
+      ends_at &&
+      starts_at &&
+      new Date(ends_at) < new Date(starts_at)
+    ) {
+      postMsg.textContent = "End time can’t be before start time.";
+      return;
+    }
+
     // Guardrails: prevent invalid enum/check values from ever being sent
     if (!ALLOWED_POST_TYPES.has(type)) {
       postMsg.textContent = "Invalid post type.";
@@ -338,6 +432,8 @@ async function showNextSuggestion() {
       topic,
       title,
       body: body || null,
+      starts_at,
+      ends_at,
       author_id: currentSession.user.id,
     });
 
@@ -355,6 +451,11 @@ async function showNextSuggestion() {
     document.getElementById("body").value = "";
     postMsg.textContent = "Posted.";
 
+    // Clear event fields
+    if (eventStartEl) eventStartEl.value = "";
+    if (eventEndEl) eventEndEl.value = "";
+    setEventTimeUi(document.getElementById("type")?.value);
+
     await loadPosts();
 
     if (ghMode) await showNextSuggestion();
@@ -366,14 +467,15 @@ async function showNextSuggestion() {
 })();
 
 async function refreshFollowUI() {
-  // follower count (public aggregate)
-  const { count, error: countErr } = await supabase
-    .from("follows")
-    .select("*", { count: "exact", head: true })
-    .eq("place_id", placeId);
+  // follower count (public aggregate via RPC; works with RLS on follows)
+  if (followCountEl) {
+    const { data, error: countErr } = await supabase.rpc(
+      "wtd_place_follower_count",
+      { p_place_id: placeId },
+    );
 
-  if (!countErr && followCountEl) {
-    followCountEl.textContent = `${count ?? 0} follower${(count ?? 0) === 1 ? "" : "s"}`;
+    const count = countErr ? 0 : (data ?? 0);
+    followCountEl.textContent = `${count} follower${count === 1 ? "" : "s"}`;
   }
 
   // following status (only if logged in)
@@ -416,7 +518,7 @@ async function loadPosts() {
   const { data, error } = await supabase
     // Use your scoring view if it exists; otherwise swap to "posts"
     .from("v_post_scores")
-    .select("id, place_id, type, topic, title, body, score")
+    .select("id, place_id, type, topic, title, body, score, starts_at, ends_at")
     .eq("place_id", placeId)
     .order("score", { ascending: false });
 
@@ -429,6 +531,23 @@ async function loadPosts() {
   }
 
   lastPosts = data || [];
+  const now = new Date();
+  lastPosts = (data || []).filter((p) => {
+    if ((p.type || "general") !== "event") return true;
+
+    // If event has an explicit end, hide it once it’s passed.
+    if (p.ends_at) return new Date(p.ends_at) >= now;
+
+    // If only a start exists, treat it as valid for 4 hours after start.
+    if (p.starts_at) {
+      const start = new Date(p.starts_at);
+      const endGuess = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+      return endGuess >= now;
+    }
+
+    // If no timestamps exist, keep it (legacy events / “timeless”)
+    return true;
+  });
   renderPosts(lastPosts);
 }
 
@@ -455,6 +574,12 @@ function renderPosts(posts) {
     const div = document.createElement("div");
     div.className = "card mb-3";
 
+    const isEvent = (p.type || "general").toLowerCase() === "event";
+    const whenText = isEvent ? formatEventRange(p.starts_at, p.ends_at) : "";
+    const whenHtml = whenText
+      ? `<div class="text-muted small mb-2">📅 ${escapeHtml(whenText)}</div>`
+      : "";
+
     div.innerHTML = `
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start gap-2">
@@ -464,6 +589,7 @@ function renderPosts(posts) {
               ${topicBadge(p.topic)}
             </div>
             <h5 class="mb-2">${escapeHtml(p.title || "(Untitled)")}</h5>
+            ${whenHtml}
           </div>
           <span class="text-muted small">Score: ${p.score ?? 0}</span>
         </div>
@@ -485,7 +611,7 @@ function topicBadge(topic) {
     food_drink: { label: "FOOD", cls: "bg-warning text-dark" },
     outdoors: { label: "OUTDOORS", cls: "bg-success" },
     history: { label: "HISTORY", cls: "bg-info text-dark" },
-    events: { label: "EVENTS", cls: "bg-primary" },
+    events: { label: "Entertainment", cls: "bg-primary" },
     attractions: { label: "ATTRACTIONS", cls: "bg-secondary" },
     nightlife: { label: "NIGHTLIFE", cls: "bg-dark" },
     legends: { label: "LEGENDS", cls: "bg-danger" },
