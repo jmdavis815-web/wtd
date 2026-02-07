@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+  <head>
+    <title>WTD Login</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="container py-5">
+    <h1>Login</h1>
+
+    <form id="loginForm" class="mt-4">
+      <input
+        id="email"
+        class="form-control mb-3"
+        type="email"
+        placeholder="you@email.com"
+        required
+      />
+      <button class="btn btn-primary">Send login link</button>
+    </form>
+
+    <p id="msg" class="mt-3"></p>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+
+    <script>
+      const msgEl = document.getElementById("msg");
+      const form = document.getElementById("loginForm");
+      const emailEl = document.getElementById("email");
+      const btn = form.querySelector("button");
+
+      const COOLDOWN_MS = 60_000; // 60 seconds
+      const KEY = "wtd_last_otp_request_at";
+
+      function remainingMs() {
+        const last = Number(localStorage.getItem(KEY) || "0");
+        const rem = COOLDOWN_MS - (Date.now() - last);
+        return Math.max(0, rem);
+      }
+
+      function setCooldown() {
+        localStorage.setItem(KEY, String(Date.now()));
+      }
+
+      function updateUi() {
+        const rem = remainingMs();
+        if (rem > 0) {
+          btn.disabled = true;
+          const s = Math.ceil(rem / 1000);
+          btn.textContent = `Please wait (${s}s)`;
+        } else {
+          btn.disabled = false;
+          btn.textContent = "Send login link";
+        }
+      }
+
+      // Show any auth error in the URL hash (like otp_expired)
+      if (location.hash.includes("error")) {
+        msgEl.textContent = decodeURIComponent(location.hash.replace("#", ""));
+      }
+
+      updateUi();
+      setInterval(updateUi, 500);
+
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        msgEl.textContent = "";
+
+        if (remainingMs() > 0) {
+          msgEl.textContent =
+            "Please wait a moment before requesting another link.";
+          return;
+        }
+
+        const email = emailEl.value.trim();
+        const redirectTo = `${window.location.origin}/index.html`;
+
+        btn.disabled = true;
+        btn.textContent = "Sending…";
+
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: redirectTo },
+        });
+
+        if (error) {
+          msgEl.textContent = error.message;
+          // Don’t start cooldown if it failed due to some other reason
+          btn.disabled = false;
+          btn.textContent = "Send login link";
+          return;
+        }
+
+        setCooldown();
+        msgEl.textContent =
+          "Check your email for the login link (use the newest one).";
+        updateUi();
+      };
+    </script>
+  </body>
+</html>

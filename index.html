@@ -1,0 +1,118 @@
+<!doctype html>
+<html>
+  <head>
+    <title>What To Do</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </head>
+  <body class="container py-4">
+    <header class="d-flex justify-content-between align-items-center">
+      <h1>What To Do</h1>
+
+      <div class="d-flex align-items-center gap-2">
+        <button
+          id="notifBtn"
+          type="button"
+          class="btn btn-sm btn-outline-dark d-none position-relative"
+          data-bs-toggle="modal"
+          data-bs-target="#notifModal"
+          title="Notifications"
+        >
+          🔔
+          <span
+            id="notifBadge"
+            class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none"
+            >0</span
+          >
+        </button>
+
+        <a href="login.html" id="loginLink">Login</a>
+        <button id="logoutBtn" class="btn btn-sm btn-outline-secondary d-none">
+          Logout
+        </button>
+        <span id="authStatus" class="text-muted small"></span>
+      </div>
+    </header>
+
+    <div id="myPlacesWrap" class="mt-4 d-none">
+      <h3>My Places</h3>
+      <ul id="myPlaces" class="list-group mt-3"></ul>
+    </div>
+
+    <h3 class="mt-4">Active Places</h3>
+    <ul id="places" class="list-group mt-3"></ul>
+
+    <div id="addPlaceCard" class="card mt-4 d-none">
+      <div class="card-body">
+        <h5 class="card-title">Add a place</h5>
+        <form id="placeForm" class="row g-2 mt-2">
+          <div class="col-12 col-md-5">
+            <input
+              id="placeName"
+              class="form-control"
+              placeholder="City / Town name"
+              required
+            />
+          </div>
+          <div class="col-12 col-md-3">
+            <input
+              id="placeAdmin1"
+              class="form-control"
+              placeholder="State/Region (optional)"
+            />
+          </div>
+          <div class="col-12 col-md-2">
+            <input
+              id="placeCountry"
+              class="form-control"
+              placeholder="Country (optional)"
+            />
+          </div>
+          <div class="col-12 col-md-2 d-grid">
+            <button class="btn btn-primary">Add</button>
+          </div>
+          <div class="col-12">
+            <div id="placeMsg" class="text-muted small"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal fade" id="notifModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Notifications</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+
+          <div class="modal-body">
+            <div id="notifList" class="list-group"></div>
+            <div id="notifEmpty" class="text-muted small d-none mt-2">
+              No notifications yet.
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button id="notifMarkAll" class="btn btn-sm btn-outline-secondary">
+              Mark all read
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/home.js"></script>
+  </body>
+</html>
