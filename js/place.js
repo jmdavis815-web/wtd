@@ -1,5 +1,5 @@
 // js/place.js
-
+// NOTE: post.tags are auto-generated in DB via trigger (see SQL)
 // Allowed values (keeps DB enums/checks happy even if the DOM ever gets weird)
 const ALLOWED_POST_TYPES = new Set(["general", "advice", "event", "alert"]);
 const ALLOWED_TOPICS = new Set([
@@ -18,6 +18,245 @@ const placeId = params.get("id");
 
 const placeNameEl = document.getElementById("placeName");
 const postsEl = document.getElementById("posts");
+
+function isOwner(post) {
+  return !!currentSession && post?.author_id === currentSession.user.id;
+}
+
+function toDatetimeLocalFromIso(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
+// One-time click handler for Edit/Delete/Save/Cancel inside posts list
+postsEl?.addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+
+  const action = btn.dataset.action;
+  const postId = btn.dataset.id;
+  if (!postId) return;
+
+  const post = (lastPosts || []).find((p) => p.id === postId);
+  if (!post) return;
+
+  if (!currentSession) {
+    alert("Please log in first.");
+    window.location.href = "login.html";
+    return;
+  }
+
+  // Extra guard: even if UI glitches, don’t allow non-owners to attempt.
+  if (!isOwner(post)) {
+    alert("You can only edit or delete your own posts.");
+    return;
+  }
+
+  if (action === "delete") {
+    if (!confirm("Delete this post?")) return;
+
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId)
+      .eq("author_id", currentSession.user.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await loadPosts();
+    if (ghMode) await showNextSuggestion();
+    return;
+  }
+
+  if (action === "edit") {
+    // Render inline editor into this card
+    const card = btn.closest(".card");
+    if (!card) return;
+
+    const isEvent = (post.type || "general").toLowerCase() === "event";
+
+    card.innerHTML = `
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div class="fw-semibold">Edit your post</div>
+          <div class="text-muted small">Score: ${post.score ?? 0}</div>
+        </div>
+
+        <div class="row g-2 mt-2">
+          <div class="col-12 col-md-3">
+            <select class="form-select form-select-sm" data-edit="type">
+              <option value="general">General</option>
+              <option value="advice">Advice</option>
+              <option value="event">Event</option>
+              <option value="alert">Alert</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <select class="form-select form-select-sm" data-edit="topic">
+              <option value="everyday">Everyday</option>
+              <option value="food_drink">Food & Drink</option>
+              <option value="outdoors">Outdoors</option>
+              <option value="history">History</option>
+              <option value="events">Entertainment</option>
+              <option value="attractions">Attractions</option>
+              <option value="nightlife">Nightlife</option>
+              <option value="legends">Legends & Lore</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <input class="form-control form-control-sm" data-edit="title" maxlength="120" />
+          </div>
+
+          <div class="col-12">
+            <textarea class="form-control form-control-sm" data-edit="body" rows="3"></textarea>
+          </div>
+
+          <div class="col-12 ${isEvent ? "" : "d-none"}" data-edit="eventRow">
+            <div class="row g-2">
+              <div class="col-12 col-md-6">
+                <label class="form-label mb-1 small">Starts</label>
+                <input type="datetime-local" class="form-control form-control-sm" data-edit="starts_at" />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label mb-1 small">Ends (optional)</label>
+                <input type="datetime-local" class="form-control form-control-sm" data-edit="ends_at" />
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 d-flex align-items-center gap-2 mt-1">
+            <button class="btn btn-sm btn-primary" data-action="save" data-id="${postId}">Save</button>
+            <button class="btn btn-sm btn-outline-secondary" data-action="cancel" data-id="${postId}">Cancel</button>
+            <span class="text-muted small" data-edit="msg"></span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Fill values
+    const typeSel = card.querySelector('[data-edit="type"]');
+    const topicSel = card.querySelector('[data-edit="topic"]');
+    const titleIn = card.querySelector('[data-edit="title"]');
+    const bodyIn = card.querySelector('[data-edit="body"]');
+    const eventRow = card.querySelector('[data-edit="eventRow"]');
+    const startsIn = card.querySelector('[data-edit="starts_at"]');
+    const endsIn = card.querySelector('[data-edit="ends_at"]');
+
+    if (typeSel) typeSel.value = post.type || "general";
+    if (topicSel) topicSel.value = post.topic || "everyday";
+    if (titleIn) titleIn.value = post.title || "";
+    if (bodyIn) bodyIn.value = post.body || "";
+
+    if (startsIn) startsIn.value = toDatetimeLocalFromIso(post.starts_at);
+    if (endsIn) endsIn.value = toDatetimeLocalFromIso(post.ends_at);
+
+    // If user changes type, show/hide event inputs
+    typeSel?.addEventListener("change", () => {
+      const isEv = (typeSel.value || "general").toLowerCase() === "event";
+      eventRow?.classList.toggle("d-none", !isEv);
+      if (!isEv) {
+        if (startsIn) startsIn.value = "";
+        if (endsIn) endsIn.value = "";
+      }
+    });
+
+    return;
+  }
+
+  if (action === "cancel") {
+    // Just re-render list
+    renderPosts(lastPosts);
+    return;
+  }
+
+  if (action === "save") {
+    const card = btn.closest(".card");
+    if (!card) return;
+
+    const msgEl = card.querySelector('[data-edit="msg"]');
+    const typeVal =
+      card.querySelector('[data-edit="type"]')?.value || "general";
+    const topicVal =
+      card.querySelector('[data-edit="topic"]')?.value || "everyday";
+    const titleVal = (
+      card.querySelector('[data-edit="title"]')?.value || ""
+    ).trim();
+    const bodyVal = (
+      card.querySelector('[data-edit="body"]')?.value || ""
+    ).trim();
+
+    const isEvent = (typeVal || "general").toLowerCase() === "event";
+    const startsIso = isEvent
+      ? toIsoFromDatetimeLocal(
+          card.querySelector('[data-edit="starts_at"]')?.value,
+        )
+      : null;
+    const endsIso = isEvent
+      ? toIsoFromDatetimeLocal(
+          card.querySelector('[data-edit="ends_at"]')?.value,
+        )
+      : null;
+
+    if (!ALLOWED_POST_TYPES.has(typeVal)) {
+      if (msgEl) msgEl.textContent = "Invalid post type.";
+      return;
+    }
+    if (!ALLOWED_TOPICS.has(topicVal)) {
+      if (msgEl) msgEl.textContent = "Invalid topic.";
+      return;
+    }
+    if (!titleVal) {
+      if (msgEl) msgEl.textContent = "Title is required.";
+      return;
+    }
+    if (isEvent && !startsIso) {
+      if (msgEl) msgEl.textContent = "Events need a start date/time.";
+      return;
+    }
+    if (
+      isEvent &&
+      endsIso &&
+      startsIso &&
+      new Date(endsIso) < new Date(startsIso)
+    ) {
+      if (msgEl) msgEl.textContent = "End time can’t be before start time.";
+      return;
+    }
+
+    if (msgEl) msgEl.textContent = "Saving…";
+
+    const { error } = await supabase
+      .from("posts")
+      .update({
+        type: typeVal,
+        topic: topicVal,
+        title: titleVal,
+        body: bodyVal || null,
+        starts_at: startsIso,
+        ends_at: endsIso,
+      })
+      .eq("id", postId)
+      .eq("author_id", currentSession.user.id);
+
+    if (error) {
+      if (msgEl) msgEl.textContent = error.message;
+      return;
+    }
+
+    await loadPosts();
+    if (ghMode) await showNextSuggestion();
+  }
+});
 
 const authStatusEl = document.getElementById("authStatus");
 const loginLink = document.getElementById("loginLink");
@@ -67,6 +306,8 @@ let ghMode = null; // 'bored' | 'hungry' | 'idk'
 let ghCurrent = null; // current suggestion post record
 let ghShownIds = new Set(); // local anti-repeat
 let ghLastTopic = null;
+let ghTagPrefs = new Map(); // tag -> weight (learned)
+let ghTagPrefsLoadedForUser = null; // user id we loaded prefs for
 
 const GH_DISTANCE_KEY = "wtd_gh_distance_pref";
 if (ghDistance) {
@@ -181,11 +422,40 @@ async function logSuggestion(action, suggestion) {
   await supabase.from("suggestion_events").insert(payload);
 }
 
+async function loadGhTagPrefs() {
+  ghTagPrefs = new Map();
+  ghTagPrefsLoadedForUser = null;
+
+  if (!currentSession) return;
+  if (!placeId) return;
+
+  ghTagPrefsLoadedForUser = currentSession.user.id;
+
+  const { data, error } = await supabase.rpc("wtd_user_tag_affinity", {
+    p_user_id: currentSession.user.id,
+    p_place_id: placeId,
+  });
+
+  if (error) {
+    console.log("GH tag prefs RPC error:", error);
+    ghTagPrefs = new Map();
+    return;
+  }
+
+  (data || []).forEach((row) => {
+    if (!row?.tag) return;
+    ghTagPrefs.set(String(row.tag), Number(row.weight) || 0);
+  });
+}
+
 function matchesMode(post, mode) {
   const t = (post.type || "general").toLowerCase();
   const topic = (post.topic || "").toLowerCase();
 
   const text = `${post.title || ""} ${post.body || ""}`.toLowerCase();
+  const tags = Array.isArray(post.tags)
+    ? post.tags.map((x) => String(x).toLowerCase())
+    : [];
 
   // keyword fallback if topic missing
   const foodWords = [
@@ -208,6 +478,7 @@ function matchesMode(post, mode) {
 
   if (mode === "hungry") {
     if (topic) return topic === "food_drink" || topic === "nightlife";
+    if (tags.includes("food")) return true;
     return foodWords.some((w) => text.includes(w));
   }
 
@@ -222,10 +493,28 @@ function matchesMode(post, mode) {
         "legends",
         "nightlife",
       ].includes(topic);
+    if (
+      tags.includes("music") ||
+      tags.includes("comedy") ||
+      tags.includes("outdoors")
+    )
+      return true;
     return t === "event" || t === "general" || t === "advice";
   }
 
   return true; // idk
+}
+
+function ghPersonalScore(p) {
+  // base score (from v_post_scores)
+  let s = Number(p.score ?? 0) || 0;
+  // add preference weights for tags (small bias)
+  const tags = Array.isArray(p.tags) ? p.tags : [];
+  for (const tag of tags) {
+    const w = ghTagPrefs.get(String(tag)) || 0;
+    s += w;
+  }
+  return s;
 }
 
 function pickNextSuggestion(posts) {
@@ -244,7 +533,9 @@ function pickNextSuggestion(posts) {
 
   if (!candidates.length) return null;
 
-  const sorted = candidates.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const sorted = candidates.sort(
+    (a, b) => ghPersonalScore(b) - ghPersonalScore(a),
+  );
   const top = sorted.slice(0, Math.min(8, sorted.length));
   return top[Math.floor(Math.random() * top.length)];
 }
@@ -276,7 +567,11 @@ async function showNextSuggestion() {
   ghWhy.textContent = `Because you said you’re ${modeLabel(ghMode)} · ${timeBucket()}`;
   ghTitle.textContent = next.title || "(Untitled)";
   ghBody.textContent = next.body || "";
-  ghMeta.textContent = `Score: ${next.score ?? 0}`;
+  const tagText =
+    Array.isArray(next.tags) && next.tags.length
+      ? ` · Tags: ${next.tags.join(", ")}`
+      : "";
+  ghMeta.textContent = `Score: ${next.score ?? 0}${tagText}`;
 
   ghHint.textContent = currentSession
     ? "Learning from your Yes/No."
@@ -303,6 +598,7 @@ async function showNextSuggestion() {
       else createPostCard?.classList.add("d-none");
 
       await refreshFollowUI();
+      await loadGhTagPrefs();
       await loadPosts();
 
       // If user already picked a mode, refresh the next suggestion after posts load
@@ -518,7 +814,9 @@ async function loadPosts() {
   const { data, error } = await supabase
     // Use your scoring view if it exists; otherwise swap to "posts"
     .from("v_post_scores")
-    .select("id, place_id, type, topic, title, body, score, starts_at, ends_at")
+    .select(
+      "id, place_id, author_id, type, topic, title, body, score, starts_at, ends_at",
+    )
     .eq("place_id", placeId)
     .order("score", { ascending: false });
 
@@ -531,6 +829,27 @@ async function loadPosts() {
   }
 
   lastPosts = data || [];
+
+  // Fetch tags from base posts table (so we don't require v_post_scores to include tags)
+  try {
+    const ids = lastPosts.map((p) => p.id).filter(Boolean);
+    if (ids.length) {
+      const { data: tagsData, error: tagsErr } = await supabase
+        .from("posts")
+        .select("id, tags")
+        .in("id", ids);
+
+      if (!tagsErr && Array.isArray(tagsData)) {
+        const tagMap = new Map(tagsData.map((r) => [r.id, r.tags || []]));
+        lastPosts = lastPosts.map((p) => ({
+          ...p,
+          tags: tagMap.get(p.id) || [],
+        }));
+      }
+    }
+  } catch (e) {
+    console.log("Tags fetch merge error:", e);
+  }
   const now = new Date();
   lastPosts = (data || []).filter((p) => {
     if ((p.type || "general") !== "event") return true;
@@ -596,9 +915,22 @@ function renderPosts(posts) {
 
         <p class="mb-3">${escapeHtml(p.body || "")}</p>
 
-        <button class="btn btn-sm btn-outline-primary me-2" onclick="vote('${p.id}', 1)">👍</button>
-        <button class="btn btn-sm btn-outline-secondary me-2" onclick="vote('${p.id}', -1)">👎</button>
-      </div>
+<div class="d-flex flex-wrap gap-2">
+  <button class="btn btn-sm btn-outline-primary" onclick="vote('${p.id}', 1)">👍</button>
+  <button class="btn btn-sm btn-outline-secondary" onclick="vote('${p.id}', -1)">👎</button>
+
+  ${
+    isOwner(p)
+      ? `
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn btn-sm btn-outline-dark" data-action="edit" data-id="${p.id}">Edit</button>
+      <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${p.id}">Delete</button>
+    </div>
+  `
+      : `<div class="ms-auto"></div>`
+  }
+</div>
+
     `;
 
     postsEl.appendChild(div);
@@ -681,6 +1013,8 @@ ghYes?.addEventListener("click", async () => {
   if (!ghCurrent) return;
   disableGhActions(true);
   await logSuggestion("yes", ghCurrent);
+  // Update prefs so next picks adapt immediately
+  await loadGhTagPrefs();
   await showNextSuggestion();
 });
 
@@ -688,6 +1022,7 @@ ghNo?.addEventListener("click", async () => {
   if (!ghCurrent) return;
   disableGhActions(true);
   await logSuggestion("no", ghCurrent);
+  await loadGhTagPrefs();
   await showNextSuggestion();
 });
 
@@ -704,6 +1039,7 @@ ghUp?.addEventListener("click", async () => {
   ghShownIds.add(ghCurrent.id);
   await logSuggestion("upvote", ghCurrent);
   await vote(ghCurrent.id, 1);
+  await loadGhTagPrefs();
   // ✅ add this
   await showNextSuggestion();
 });
@@ -713,6 +1049,7 @@ ghDown?.addEventListener("click", async () => {
   ghShownIds.add(ghCurrent.id);
   await logSuggestion("downvote", ghCurrent);
   await vote(ghCurrent.id, -1);
+  await loadGhTagPrefs();
   // ✅ add this
   await showNextSuggestion();
 });
