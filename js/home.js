@@ -58,8 +58,8 @@
   }
 
   function displayText(p) {
-    const region = p.region || "";
-    const cc = p.country_code || "";
+    const region = p.region || p.admin1 || "";
+    const cc = p.country_code || p.country || "";
     const parts = [p.name];
     if (region) parts.push(region);
     const tail = parts.join(", ");
@@ -100,6 +100,10 @@
     const { data, error } = await supabase
       .from("follows")
       .select("place_id, places(id, name, region, country_code)")
+      // change to:
+      .select(
+        "place_id, places(id, name, region, country_code, admin1, country)",
+      )
       .eq("user_id", currentSession.user.id);
 
     if (error) {
@@ -155,7 +159,7 @@
     // Search across name/city/region/country_code (works with your new schema)
     const { data, error } = await supabase
       .from("places")
-      .select("id, name, region, country_code")
+      .select("id, name, region, country_code, admin1, country")
       .or(
         `name.ilike.${pattern},city.ilike.${pattern},region.ilike.${pattern},country_code.ilike.${pattern}`,
       )
