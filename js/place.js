@@ -298,6 +298,13 @@ const ghDown = document.getElementById("ghDown");
 const ghDistance = document.getElementById("ghDistance");
 const modeButtons = Array.from(document.querySelectorAll("[data-mode]"));
 
+const postSearchEl = document.getElementById("postSearch");
+document
+  .getElementById("browseCollapse")
+  ?.addEventListener("shown.bs.collapse", () => postSearchEl?.focus());
+
+let currentSearch = "";
+
 let currentSession = null;
 let currentFilter = "all";
 let lastPosts = [];
@@ -397,6 +404,22 @@ function setGhButtonsActive(mode) {
     if (b.dataset.mode === mode) b.classList.add("active");
     else b.classList.remove("active");
   });
+}
+
+function renderGhEmpty() {
+  // Primary "widget" state before a mode is chosen.
+  // No suggestion shown until user taps a vibe.
+  if (ghWrap) ghWrap.classList.remove("d-none");
+  if (ghWhy) ghWhy.textContent = "";
+  if (ghTitle) ghTitle.textContent = "What do you want to do?";
+  if (ghBody)
+    ghBody.textContent =
+      "Tap I’m bored, I’m hungry, or I don’t know — and I’ll pick something.";
+  if (ghMeta) ghMeta.textContent = "";
+  if (ghMsg) ghMsg.textContent = "";
+  if (ghHint) ghHint.textContent = "Pick a vibe to get a suggestion.";
+  disableGhActions(true);
+  ghCurrent = null;
 }
 
 function disableGhActions(disabled) {
@@ -543,7 +566,10 @@ function pickNextSuggestion(posts) {
 
 async function showNextSuggestion() {
   ghMsg.textContent = "";
-  if (!ghMode) return;
+  if (!ghMode) {
+    renderGhEmpty();
+    return;
+  }
 
   // Ensure we have posts loaded
   if (!lastPosts?.length) {
@@ -604,8 +630,13 @@ async function showNextSuggestion() {
 
       // If user already picked a mode, refresh the next suggestion after posts load
       if (ghMode) await showNextSuggestion();
+      if (ghMode) await showNextSuggestion();
+      else renderGhEmpty();
     },
   });
+
+  // GH should look "ready" on first paint even before user taps a mode
+  renderGhEmpty();
 
   // Filters
   filterButtons.forEach((btn) => {
@@ -615,6 +646,12 @@ async function showNextSuggestion() {
       currentFilter = btn.dataset.filter;
       renderPosts(lastPosts);
     });
+  });
+
+  // Search (title/body/tags) inside Browse Posts
+  postSearchEl?.addEventListener("input", () => {
+    currentSearch = (postSearchEl.value || "").trim().toLowerCase();
+    renderPosts(lastPosts);
   });
 
   // Load place name
@@ -871,20 +908,41 @@ async function loadPosts() {
 }
 
 function renderPosts(posts) {
-  const list = (posts || []).filter((p) => {
+  const q = (currentSearch || "").trim().toLowerCase();
+
+  const base = (posts || []).filter((p) => {
     if (currentFilter === "all") return true;
     return (p.type || "general") === currentFilter;
   });
 
+  // Apply search across title/body/tags
+  const list = !q
+    ? base
+    : base.filter((p) => {
+        const title = String(p.title || "").toLowerCase();
+        const body = String(p.body || "").toLowerCase();
+        const tags = Array.isArray(p.tags)
+          ? p.tags.map((x) => String(x).toLowerCase()).join(" ")
+          : "";
+        return title.includes(q) || body.includes(q) || tags.includes(q);
+      });
+
   if (filterHint) {
-    filterHint.textContent =
-      currentFilter === "all"
-        ? `${posts.length} total`
-        : `${list.length} of ${posts.length} shown`;
+    const total = (posts || []).length;
+    const baseCount = base.length;
+    const shown = list.length;
+    const parts = [];
+    if (currentFilter === "all") parts.push(`${total} total`);
+    else parts.push(`${baseCount} in filter`);
+    if (q) parts.push(`${shown} match${shown === 1 ? "" : "es"} search`);
+    else parts.push(`${shown} shown`);
+    filterHint.textContent = parts.join(" · ");
   }
 
   if (!list.length) {
-    postsEl.innerHTML = `<div class="alert alert-secondary">No posts for this filter yet.</div>`;
+    postsEl.innerHTML = `<div class="alert alert-secondary">${
+      q ? "No posts match your search." : "No posts for this filter yet."
+    }</div>`;
     return;
   }
 

@@ -99,8 +99,6 @@
 
     const { data, error } = await supabase
       .from("follows")
-      .select("place_id, places(id, name, region, country_code)")
-      // change to:
       .select(
         "place_id, places(id, name, region, country_code, admin1, country)",
       )
