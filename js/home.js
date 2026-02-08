@@ -235,9 +235,9 @@
 
       msg.textContent = isDuplicate
         ? "That place already exists."
-        : error.message;
+        : error.message || "Could not save place.";
 
-      return;
+      return; // ✅ stop here on error
     }
 
     // Clear inputs
@@ -254,7 +254,7 @@
     if (searchEl && (searchEl.value || "").trim().length >= 2) {
       await searchPlaces(searchEl.value);
     }
-  });
+  };);
 
   // ✅ Initial load
   await loadMyPlaces();
