@@ -1,5 +1,6 @@
 // js/place.js
 // NOTE: post.tags are auto-generated in DB via trigger (see SQL)
+// NOTE: post creation must use RPC wtd_create_post (direct INSERT on posts is revoked)
 // Allowed values (keeps DB enums/checks happy even if the DOM ever gets weird)
 const ALLOWED_POST_TYPES = new Set(["general", "advice", "event", "alert"]);
 const ALLOWED_TOPICS = new Set([
@@ -722,15 +723,14 @@ async function showNextSuggestion() {
       return;
     }
 
-    const { error } = await supabase.from("posts").insert({
-      place_id: placeId,
-      type,
-      topic,
-      title,
-      body: body || null,
-      starts_at,
-      ends_at,
-      author_id: currentSession.user.id,
+    const { data, error } = await supabase.rpc("wtd_create_post", {
+      p_place_id: placeId,
+      p_type: type,
+      p_topic: topic,
+      p_title: title,
+      p_body: body || null,
+      p_starts_at: starts_at || null,
+      p_ends_at: ends_at || null,
     });
 
     if (error) {

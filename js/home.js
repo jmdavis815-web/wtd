@@ -12,12 +12,68 @@
   const form = document.getElementById("placeForm");
   const msg = document.getElementById("placeMsg");
 
-  // Holds the current auth session (or null). Must be declared before WTDAuth.init()
   let currentSession = null;
   let lastSearch = "";
   let searchTimer = null;
 
-  // Use shared auth UI controller
+  // ---- helpers ----
+  function showHint(text) {
+    if (hintEl) hintEl.textContent = text;
+  }
+
+  function clearPlacesUI() {
+    if (!ul) return;
+    ul.innerHTML = "";
+  }
+
+  // Avoid PostgREST .or() filter parsing issues (commas/parentheses)
+  function safeQuery(v) {
+    return (v || "")
+      .trim()
+      .replaceAll(",", " ")
+      .replaceAll("(", " ")
+      .replaceAll(")", " ");
+  }
+
+  function normalizeCountryCode(v) {
+    const s = (v || "").trim().toUpperCase();
+    if (!s) return null;
+    if (
+      [
+        "US",
+        "USA",
+        "U.S",
+        "UNITED STATES",
+        "UNITED STATES OF AMERICA",
+        "U.S.A",
+        "U.S.",
+        "U.S.A.",
+      ].includes(s)
+    )
+      return "US";
+    if (["CA", "CAN", "CANADA"].includes(s)) return "CA";
+    // allow 2-letter codes through; otherwise store null for now
+    if (/^[A-Z]{2}$/.test(s)) return s;
+    return null;
+  }
+
+  function displayText(p) {
+    const region = p.region || "";
+    const cc = p.country_code || "";
+    const parts = [p.name];
+    if (region) parts.push(region);
+    const tail = parts.join(", ");
+    return cc ? `${tail} (${cc})` : tail;
+  }
+
+  function makeRow(p) {
+    const li = document.createElement("li");
+    li.className = "list-group-item";
+    li.innerHTML = `<a href="place.html?id=${p.id}">${escapeHtml(displayText(p))}</a>`;
+    return li;
+  }
+
+  // ---- auth ----
   currentSession = await WTDAuth.init({
     onChange: async (session) => {
       currentSession = session;
@@ -28,6 +84,7 @@
     },
   });
 
+  // ---- My Places ----
   async function loadMyPlaces() {
     if (!myUl || !myWrap) return;
 
@@ -42,7 +99,7 @@
 
     const { data, error } = await supabase
       .from("follows")
-      .select("place_id, places(id, name, admin1, country)")
+      .select("place_id, places(id, name, region, country_code)")
       .eq("user_id", currentSession.user.id);
 
     if (error) {
@@ -66,27 +123,16 @@
     places.forEach((p) => {
       const li = document.createElement("li");
       li.className = "list-group-item";
-      li.innerHTML = `<a href="place.html?id=${p.id}">
-        ${escapeHtml(p.name)}${p.admin1 ? ", " + escapeHtml(p.admin1) : ""}${
-          p.country ? " (" + escapeHtml(p.country) + ")" : ""
-        }</a>`;
+      li.innerHTML = `<a href="place.html?id=${p.id}">${escapeHtml(displayText(p))}</a>`;
       myUl.appendChild(li);
     });
   }
 
-  function clearPlacesUI() {
-    if (!ul) return;
-    ul.innerHTML = "";
-  }
-
-  function showHint(text) {
-    if (hintEl) hintEl.textContent = text;
-  }
-
+  // ---- search ----
   async function searchPlaces(q) {
     if (!ul) return;
 
-    const query = (q || "").trim();
+    const query = safeQuery(q);
     lastSearch = query;
 
     if (!query) {
@@ -104,18 +150,18 @@
     ul.innerHTML = `<li class="list-group-item text-muted">Searching…</li>`;
     showHint(`Searching for “${query}”…`);
 
-    // OR-search across name/admin1/country (PostgREST syntax)
     const pattern = `%${query}%`;
+
+    // Search across name/city/region/country_code (works with your new schema)
     const { data, error } = await supabase
       .from("places")
-      .select("id, name, admin1, country")
+      .select("id, name, region, country_code")
       .or(
-        `name.ilike.${pattern},admin1.ilike.${pattern},country.ilike.${pattern}`,
+        `name.ilike.${pattern},city.ilike.${pattern},region.ilike.${pattern},country_code.ilike.${pattern}`,
       )
       .order("name")
       .limit(25);
 
-    // If user typed more while this request was in flight, ignore stale results
     if (lastSearch !== query) return;
 
     if (error) {
@@ -137,21 +183,6 @@
     showHint(`${data.length} match${data.length === 1 ? "" : "es"}.`);
   }
 
-  function displayText(p) {
-    return `${p.name}${p.admin1 ? ", " + p.admin1 : ""}${
-      p.country ? " (" + p.country + ")" : ""
-    }`;
-  }
-
-  function makeRow(p) {
-    const li = document.createElement("li");
-    li.className = "list-group-item";
-    li.innerHTML = `<a href="place.html?id=${p.id}">${escapeHtml(
-      displayText(p),
-    )}</a>`;
-    return li;
-  }
-
   // Debounced search typing
   if (searchEl) {
     searchEl.addEventListener("input", () => {
@@ -161,8 +192,10 @@
     });
   }
 
+  // ---- add place (RPC upsert) ----
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!msg) return;
     msg.textContent = "";
 
     if (!currentSession) {
@@ -170,43 +203,48 @@
       return;
     }
 
-    const name = document.getElementById("placeName").value.trim();
-    const admin1 = document.getElementById("placeAdmin1").value.trim();
-    const country = document.getElementById("placeCountry").value.trim();
+    const name = document.getElementById("placeName")?.value?.trim() || "";
+    const admin1 = document.getElementById("placeAdmin1")?.value?.trim() || "";
+    const country =
+      document.getElementById("placeCountry")?.value?.trim() || "";
 
     if (!name) {
       msg.textContent = "Name is required.";
       return;
     }
 
-    const payload = {
-      name,
-      admin1: admin1 || null,
-      country: country || null,
-      provider: "user",
-      provider_place_id: crypto.randomUUID(),
-    };
+    const countryCode = normalizeCountryCode(country);
 
-    const { data, error } = await supabase
-      .from("places")
-      .insert(payload)
-      .select("id, name, admin1, country")
-      .single();
+    // RPC: returns existing place if duplicate/close-dupe
+    const { data, error } = await supabase.rpc("wtd_upsert_place_simple", {
+      p_name: name,
+      p_region: admin1 || null,
+      p_country_code: countryCode || null,
+    });
 
     if (error) {
-      console.log("places insert error:", error);
-      console.log("places insert payload:", payload);
+      console.log("place upsert error:", error);
 
-      if (error.code === "23505")
-        msg.textContent = "That place already exists.";
-      else msg.textContent = error.message;
+      const isDuplicate =
+        error.code === "23505" ||
+        (error.message || "").toLowerCase().includes("duplicate");
+
+      msg.textContent = isDuplicate
+        ? "That place already exists."
+        : error.message;
+
       return;
     }
 
+    // Clear inputs
     document.getElementById("placeName").value = "";
     document.getElementById("placeAdmin1").value = "";
     document.getElementById("placeCountry").value = "";
-    msg.textContent = "Added.";
+    // RPC may return an existing place; keep message neutral
+    msg.textContent = "Saved.";
+
+    // Refresh My Places
+    await loadMyPlaces();
 
     // If it matches the current search, show it immediately
     if (searchEl && (searchEl.value || "").trim().length >= 2) {
@@ -216,7 +254,6 @@
 
   // ✅ Initial load
   await loadMyPlaces();
-  // No giant list: start empty until user searches
   clearPlacesUI();
   showHint("Start typing to see matching places.");
 })();
