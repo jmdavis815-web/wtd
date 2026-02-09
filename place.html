@@ -21,10 +21,14 @@
         <div class="d-flex align-items-center gap-2">
           <button
             id="followBtn"
-            class="btn btn-sm btn-outline-dark d-none"
+            class="btn btn-sm btn-outline-dark d-none position-relative"
             type="button"
           >
-            Follow
+            <span id="followLabel">Follow</span>
+            <span
+              id="followBadge"
+              class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-dark d-none"
+            ></span>
           </button>
           <span id="followCount" class="text-muted small"></span>
         </div>

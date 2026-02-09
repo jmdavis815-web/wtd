@@ -20,6 +20,13 @@ const placeId = params.get("id");
 const placeNameEl = document.getElementById("placeName");
 const postsEl = document.getElementById("posts");
 
+function formatCount(n) {
+  if (!n || n < 1) return "0";
+  if (n < 1_000) return String(n);
+  if (n < 1_000_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
 function isOwner(post) {
   return !!currentSession && post?.author_id === currentSession.user.id;
 }
@@ -284,7 +291,8 @@ const filterHint = document.getElementById("filterHint");
 const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
 
 const followBtn = document.getElementById("followBtn");
-const followCountEl = document.getElementById("followCount");
+const followLabel = document.getElementById("followLabel");
+const followBadge = document.getElementById("followBadge");
 
 // -------------------------
 // GH-Mind "Take the wheel"
@@ -970,29 +978,47 @@ async function showNextSuggestion() {
 })();
 
 async function refreshFollowUI() {
-  // follower count (public aggregate via RPC; works with RLS on follows)
-  if (followCountEl) {
+  // --- follower count badge ---
+  let followerCount = 0;
+
+  {
     const { data, error: countErr } = await supabase.rpc(
       "wtd_place_follower_count",
       { p_place_id: placeId },
     );
-
-    const count = countErr ? 0 : (data ?? 0);
-    followCountEl.textContent = `${count} follower${count === 1 ? "" : "s"}`;
+    followerCount = countErr ? 0 : Number(data || 0);
   }
 
-  // following status (only if logged in)
+  if (followBadge) {
+    if (followerCount > 0) {
+      followBadge.textContent = formatCount(followerCount);
+      followBadge.classList.remove("d-none");
+    } else {
+      followBadge.classList.add("d-none");
+    }
+  }
+
+  // --- follow button + state ---
   if (!followBtn) return;
+
+  followBtn.classList.remove("d-none");
 
   if (!currentSession) {
     isFollowing = false;
-    followBtn.classList.remove("d-none");
-    followBtn.textContent = "Follow";
-    followBtn.className = "btn btn-sm btn-outline-dark";
+
+    if (followLabel) followLabel.textContent = "Follow";
+
+    // keep position-relative, only swap style classes
+    followBtn.classList.remove("btn-dark");
+    followBtn.classList.add(
+      "btn",
+      "btn-sm",
+      "btn-outline-dark",
+      "position-relative",
+    );
     return;
   }
 
-  // ✅ check if THIS user follows THIS place
   const { data, error } = await supabase
     .from("follows")
     .select("place_id")
@@ -1000,18 +1026,14 @@ async function refreshFollowUI() {
     .eq("place_id", placeId)
     .maybeSingle();
 
-  if (error) {
-    console.log("FOLLOW STATUS ERROR:", error);
-    isFollowing = false;
-  } else {
-    isFollowing = !!data;
-  }
+  isFollowing = !error && !!data;
 
-  followBtn.classList.remove("d-none");
-  followBtn.textContent = isFollowing ? "Following" : "Follow";
-  followBtn.className = isFollowing
-    ? "btn btn-sm btn-dark"
-    : "btn btn-sm btn-outline-dark";
+  if (followLabel)
+    followLabel.textContent = isFollowing ? "Following" : "Follow";
+
+  followBtn.classList.add("btn", "btn-sm", "position-relative");
+  followBtn.classList.toggle("btn-dark", isFollowing);
+  followBtn.classList.toggle("btn-outline-dark", !isFollowing);
 }
 
 async function loadPosts() {
@@ -1105,7 +1127,7 @@ async function loadPosts() {
 
   renderPosts(lastPosts);
   // If your place.html has a map panel, refresh pins after posts load
-  await renderMapFromPosts();
+  renderMapFromPosts(); // don't block posts on maps
 }
 
 // Map renderer (global so it persists and can be called after every loadPosts)
