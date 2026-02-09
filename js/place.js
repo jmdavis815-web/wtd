@@ -306,6 +306,45 @@ const ghDown = document.getElementById("ghDown");
 const ghDistance = document.getElementById("ghDistance");
 const modeButtons = Array.from(document.querySelectorAll("[data-mode]"));
 
+// Minimize / expand GH hero card
+const ghCollapseEl = document.getElementById("ghCollapse");
+const ghMinBtn = document.getElementById("ghMinBtn");
+
+if (ghCollapseEl && ghMinBtn) {
+  const setGhBtn = (isOpen) => {
+    ghMinBtn.textContent = isOpen ? "Minimize" : "Expand";
+    ghMinBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    ghMinBtn.title = isOpen ? "Minimize GH-Mind" : "Expand GH-Mind";
+  };
+
+  // Initial state
+  setGhBtn(ghCollapseEl.classList.contains("show"));
+
+  ghCollapseEl.addEventListener("shown.bs.collapse", () => setGhBtn(true));
+  ghCollapseEl.addEventListener("hidden.bs.collapse", () => setGhBtn(false));
+}
+
+// -------------------------
+// Create Post collapse (bulletproof toggle)
+// -------------------------
+const createToggleBtn = document.getElementById("createToggleBtn");
+const createCollapse = document.getElementById("createCollapse");
+
+if (createToggleBtn && createCollapse && window.bootstrap?.Collapse) {
+  const inst = window.bootstrap.Collapse.getOrCreateInstance(createCollapse, {
+    toggle: false,
+  });
+
+  createToggleBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    inst.toggle();
+  });
+} else if (createToggleBtn && createCollapse) {
+  console.warn(
+    "Create collapse: Bootstrap Collapse not found. Is bootstrap.bundle loaded?",
+  );
+}
+
 // Persist GH distance band
 const GH_DISTANCE_KEY = "wtd_gh_distance_pref";
 
@@ -678,7 +717,7 @@ function pickNextSuggestion(posts) {
 }
 
 async function showNextSuggestion() {
-  ghMsg.textContent = "";
+  if (ghMsg) ghMsg.textContent = "";
   if (!ghMode) {
     renderGhEmpty();
     return;
@@ -780,12 +819,12 @@ async function showNextSuggestion() {
     .single();
 
   if (placeErr || !place) {
-    placeNameEl.textContent = "Place not found";
+    if (placeNameEl) placeNameEl.textContent = "Place not found";
     postsEl.innerHTML = `<div class="alert alert-warning mt-3">That place doesn't exist (or you don't have access).</div>`;
     return;
   }
 
-  placeNameEl.textContent = place.name;
+  if (placeNameEl) placeNameEl.textContent = place.name;
 
   // Show/hide event time fields based on type select
   const typeSelect = document.getElementById("type");
