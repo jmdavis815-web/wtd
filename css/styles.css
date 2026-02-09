@@ -154,7 +154,7 @@ a:hover {
    Buttons (modern pills)
    ========================================== */
 section .mood-btn {
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .btn {
@@ -280,13 +280,11 @@ section .mood-btn {
   color: white;
 }
 
-diff --git a/css/styles.css b/css/styles.css
-@@
- /* ==========================================
+/* ==========================================
     GH Hero styling
     ========================================== */
-@@
- .gh-attention {
+
+.gh-attention {
   animation: ghPulse 1.2s ease-out 1;
 }
 
