@@ -254,15 +254,6 @@ section .mood-btn {
   color: rgba(230, 232, 238, 0.7) !important;
 }
 
-/* Mobile: keep hero handy */
-@media (max-width: 575.98px) {
-  #ghMindCard {
-    position: sticky;
-    top: 0.75rem;
-    z-index: 10;
-  }
-}
-
 /* Attention pulse */
 @keyframes ghPulse {
   0% {

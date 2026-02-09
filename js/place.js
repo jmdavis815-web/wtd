@@ -55,16 +55,6 @@ function buildMapsUrl(p) {
   return null;
 }
 
-// Map refresh helper (only renders if open/visible)
-function maybeRenderMap() {
-  const mapEl = document.getElementById("map");
-  if (!mapEl) return;
-  const collapse = mapEl.closest(".collapse");
-  if (collapse && !collapse.classList.contains("show")) return;
-  if (mapEl.offsetParent === null) return;
-  renderMapFromPosts();
-}
-
 function formatCount(n) {
   if (!n || n < 1) return "0";
   if (n < 1_000) return String(n);
@@ -478,6 +468,7 @@ let ghShownIds = new Set(); // local anti-repeat
 let ghLastTopic = null;
 let ghTagPrefs = new Map(); // tag -> weight (learned)
 let ghTagPrefsLoadedForUser = null; // user id we loaded prefs for
+let ghEventId = null; // suggestion_events.id for the current shown suggestion (for open/close duration)
 
 if (ghDistance) {
   ghDistance.value = localStorage.getItem(GH_DISTANCE_KEY) || "near";
@@ -714,22 +705,43 @@ function disableGhActions(disabled) {
   });
 }
 
-async function logSuggestion(action, suggestion) {
+async function logSuggestion(action, suggestion, opts = {}) {
   // Only learn when logged in (keeps it non-invasive)
-  if (!currentSession) return;
+  if (!currentSession) return null;
 
   const payload = {
-    user_id: currentSession.user.id,
-    place_id: placeId,
-    mode: ghMode || "idk",
-    suggestion_type: "post",
-    suggestion_id: suggestion?.id || null,
-    action,
-    distance_band: ghDistance?.value || null,
-    time_bucket: timeBucket(),
+    p_place_id: placeId,
+    p_mode: ghMode || "idk",
+    p_suggestion_type: "post",
+    p_suggestion_id: suggestion?.id || null,
+    p_action: action,
+    p_distance_band: ghDistance?.value || null,
+    p_time_bucket: timeBucket(),
+    p_reason: opts.reason || null,
+    p_opened_at: opts.opened_at || null,
+    p_closed_at: opts.closed_at || null,
+    p_duration_s: opts.duration_s || null,
   };
 
-  await supabase.from("suggestion_events").insert(payload);
+  const { data, error } = await supabase.rpc(
+    "wtd_log_suggestion_event",
+    payload,
+  );
+  if (error) {
+    console.log("wtd_log_suggestion_event error:", error);
+    return null;
+  }
+  return data || null; // returns uuid
+}
+
+async function markSuggestionOpen(eventId) {
+  if (!currentSession || !eventId) return;
+  await supabase.rpc("wtd_mark_suggestion_open", { p_event_id: eventId });
+}
+
+async function markSuggestionClose(eventId) {
+  if (!currentSession || !eventId) return;
+  await supabase.rpc("wtd_mark_suggestion_close", { p_event_id: eventId });
 }
 
 async function loadGhTagPrefs() {
@@ -784,6 +796,45 @@ function matchesMode(post, mode) {
     "sushi",
     "bbq",
     "burger",
+    // added phrases/keywords
+    "brewery",
+    "cocktail",
+    "happy hour",
+    "dessert",
+    "bakery",
+    "ice cream",
+    "late night",
+    "ramen",
+    "thai",
+    "mexican",
+    "steakhouse",
+    "wings",
+    "tapas",
+  ];
+
+  const boredWords = [
+    "live music",
+    "concert",
+    "comedy",
+    "open mic",
+    "karaoke",
+    "trivia",
+    "arcade",
+    "bowling",
+    "museum",
+    "art",
+    "gallery",
+    "hike",
+    "hiking",
+    "trail",
+    "park",
+    "zoo",
+    "aquarium",
+    "festival",
+    "farmers market",
+    "ghost",
+    "haunted",
+    "tour",
   ];
 
   if (mode === "hungry") {
@@ -806,9 +857,18 @@ function matchesMode(post, mode) {
     if (
       tags.includes("music") ||
       tags.includes("comedy") ||
-      tags.includes("outdoors")
+      tags.includes("outdoors") ||
+      tags.includes("festival") ||
+      tags.includes("art") ||
+      tags.includes("trivia") ||
+      tags.includes("karaoke") ||
+      tags.includes("hiking") ||
+      tags.includes("museum") ||
+      tags.includes("arcade")
     )
       return true;
+    // keyword/phrase fallback if topic/tags missing
+    if (boredWords.some((w) => text.includes(w))) return true;
     return t === "event" || t === "general" || t === "advice";
   }
 
@@ -827,11 +887,31 @@ function ghPersonalScore(p) {
   return s;
 }
 
+// ----------------------------------------------------------
+// GH "hard avoid" (strong dislikes)
+// If a tag’s affinity weight is very negative, avoid suggestions with it.
+// Example: user dislikes "country" → after enough No/Downvote, weight <= -2
+// ----------------------------------------------------------
+const GH_HARD_AVOID_THRESHOLD = -2;
+function hasHardAvoidTag(post) {
+  const tags = Array.isArray(post?.tags) ? post.tags : [];
+  return tags.some(
+    (t) => (ghTagPrefs.get(String(t)) || 0) <= GH_HARD_AVOID_THRESHOLD,
+  );
+}
+
 function pickNextSuggestion(posts) {
   let candidates = (posts || [])
     .filter((p) => p?.id)
     .filter((p) => matchesMode(p, ghMode))
     .filter((p) => !ghShownIds.has(p.id));
+
+  // ✅ Avoid strongly-disliked tags (ex: "country")
+  // Only apply when logged in (since prefs are per-user).
+  if (currentSession) {
+    const filtered = candidates.filter((p) => !hasHardAvoidTag(p));
+    if (filtered.length) candidates = filtered; // don’t zero-out if everything is disliked
+  }
 
   // ✅ If "idk", avoid showing the same topic twice in a row
   if (ghMode === "idk" && ghLastTopic) {
@@ -857,12 +937,35 @@ async function showNextSuggestion() {
     return;
   }
 
-  // Ensure we have posts loaded
-  if (!lastPosts?.length) {
-    await loadPosts();
+  // Close any previous suggestion timer (if we had one open)
+  if (ghEventId) {
+    await markSuggestionClose(ghEventId);
+    ghEventId = null;
   }
 
-  const next = pickNextSuggestion(lastPosts);
+  // Logged in = use server-side suggestion engine
+  let next = null;
+  if (currentSession) {
+    const { data, error } = await supabase.rpc("wtd_suggest_post", {
+      p_place_id: placeId,
+      p_mode: ghMode || "idk",
+      p_time_bucket: timeBucket(),
+      p_distance_band: ghDistance?.value || null,
+    });
+
+    if (error) {
+      console.log("wtd_suggest_post error (fallback to local):", error);
+    } else {
+      // RPC returns a TABLE; Supabase returns an array
+      next = Array.isArray(data) ? data[0] : data;
+    }
+  }
+
+  // Fallback (anon or RPC error): local pick from loaded posts
+  if (!next) {
+    if (!lastPosts?.length) await loadPosts();
+    next = pickNextSuggestion(lastPosts);
+  }
 
   if (!next) {
     ghWrap?.classList.add("d-none");
@@ -908,8 +1011,23 @@ async function showNextSuggestion() {
   disableGhActions(false);
 
   // log "shown" (only if logged in)
-  await logSuggestion("shown", next);
+  ghEventId = await logSuggestion("shown", next);
 }
+
+// If user clicks Map it, mark open; when tab hides, mark close (duration)
+ghLinks?.addEventListener("click", async (e) => {
+  const a = e.target.closest("a");
+  if (!a) return;
+  if (!ghEventId) return;
+  await markSuggestionOpen(ghEventId);
+});
+
+document.addEventListener("visibilitychange", async () => {
+  // When user leaves the tab after opening map, close timer
+  if (document.visibilityState === "hidden" && ghEventId) {
+    await markSuggestionClose(ghEventId);
+  }
+});
 
 (async () => {
   if (!placeId) {
@@ -1363,7 +1481,7 @@ async function renderMapFromPosts() {
   // ✅ Prefer: last 5 posts you reacted positively to (Yes/Upvote/Like)
   // If not logged in or none found, fallback to lastPosts (normal behavior).
   const preferred = await fetchRecentPositivePosts(5);
-  const source = preferred && preferred.length ? preferred : [];
+  const source = preferred && preferred.length ? preferred : (lastPosts || []);
 
   const pts = source
     .filter((p) => p.lat != null && p.lng != null)
