@@ -22,6 +22,7 @@ const locHint = document.getElementById("locHint");
 const params = new URLSearchParams(window.location.search);
 const placeId = params.get("id");
 
+const ghLinks = document.getElementById("ghLinks");
 const placeNameEl = document.getElementById("placeName");
 const postsEl = document.getElementById("posts");
 
@@ -694,6 +695,7 @@ function renderGhEmpty() {
       "Tap I’m bored, I’m hungry, or I don’t know — and I’ll pick something.";
   if (ghMeta) ghMeta.textContent = "";
   if (ghMsg) ghMsg.textContent = "";
+  if (ghLinks) ghLinks.innerHTML = "";
   if (ghHint) ghHint.textContent = "Pick a vibe to get a suggestion.";
   disableGhActions(true);
   ghCurrent = null;
@@ -860,6 +862,7 @@ async function showNextSuggestion() {
     ghHint.textContent =
       "No more suggestions yet — add more posts or switch mode.";
     ghCurrent = null;
+    if (ghLinks) ghLinks.innerHTML = "";
     return;
   }
 
@@ -882,6 +885,14 @@ async function showNextSuggestion() {
       ? ` · Tags: ${next.tags.join(", ")}`
       : "";
   ghMeta.textContent = `Score: ${next.score ?? 0}${distPart}${tagText}`;
+
+  // ✅ Add “Map it” to suggestions (only when we have coords/address)
+  if (ghLinks) {
+    const url = buildMapsUrl(next);
+    ghLinks.innerHTML = url
+      ? `<a class="btn btn-sm wtd-actionbtn" href="${url}" target="_blank" rel="noopener">Map it</a>`
+      : "";
+  }
 
   ghHint.textContent = currentSession
     ? "Learning from your Yes/No."
