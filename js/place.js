@@ -272,6 +272,14 @@ const eventTimeRow = document.getElementById("eventTimeRow");
 const eventStartEl = document.getElementById("eventStart");
 const eventEndEl = document.getElementById("eventEnd");
 
+// Venue/location picker (Google Places Autocomplete)
+const venueSearchEl = document.getElementById("venueSearch");
+let selectedVenue = null;
+
+// Map state (persist across loadPosts calls)
+let map = null;
+let markers = [];
+
 const filterHint = document.getElementById("filterHint");
 const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
 
@@ -298,6 +306,9 @@ const ghDown = document.getElementById("ghDown");
 const ghDistance = document.getElementById("ghDistance");
 const modeButtons = Array.from(document.querySelectorAll("[data-mode]"));
 
+// Persist GH distance band
+const GH_DISTANCE_KEY = "wtd_gh_distance_pref";
+
 const postSearchEl = document.getElementById("postSearch");
 document
   .getElementById("browseCollapse")
@@ -317,11 +328,113 @@ let ghLastTopic = null;
 let ghTagPrefs = new Map(); // tag -> weight (learned)
 let ghTagPrefsLoadedForUser = null; // user id we loaded prefs for
 
-const GH_DISTANCE_KEY = "wtd_gh_distance_pref";
 if (ghDistance) {
   ghDistance.value = localStorage.getItem(GH_DISTANCE_KEY) || "near";
-  ghDistance.addEventListener("change", () => {
+  ghDistance.addEventListener("change", async () => {
     localStorage.setItem(GH_DISTANCE_KEY, ghDistance.value);
+    await loadPosts();
+    if (ghMode) await showNextSuggestion();
+  });
+}
+
+(async function wireVenueAutocomplete() {
+  if (!venueSearchEl) return;
+
+  try {
+    await window.WTDLoadGoogleMaps();
+
+    const ac = new google.maps.places.Autocomplete(venueSearchEl, {
+      // allow places + addresses
+      types: ["establishment", "geocode"],
+      fields: ["name", "formatted_address", "geometry", "place_id"],
+    });
+
+    ac.addListener("place_changed", () => {
+      const p = ac.getPlace();
+      if (!p?.geometry?.location) {
+        selectedVenue = null;
+        return;
+      }
+
+      selectedVenue = {
+        place_id: p.place_id || null,
+        name: p.name || null,
+        address_text: p.formatted_address || venueSearchEl.value || null,
+        lat: p.geometry.location.lat(),
+        lng: p.geometry.location.lng(),
+      };
+    });
+  } catch (e) {
+    console.log("Venue autocomplete not available:", e);
+  }
+})();
+
+// -------------------------
+// GEOLOCATION (device)
+// -------------------------
+const GEO_CACHE_KEY = "wtd_geo_cache_v1"; // {lat,lng,ts}
+const GEO_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function milesToMeters(mi) {
+  return Math.round(mi * 1609.34);
+}
+
+function radiusMetersForBand(band) {
+  // Tune these later if you want
+  if (band === "near") return milesToMeters(3);
+  if (band === "medium") return milesToMeters(10);
+  if (band === "far") return milesToMeters(25);
+  return null; // "any"
+}
+
+function fmtMilesFromMeters(m) {
+  if (m == null || Number.isNaN(Number(m))) return "";
+  const mi = Number(m) / 1609.34;
+  if (mi < 1) return `${mi.toFixed(1)} mi`;
+  if (mi < 10) return `${mi.toFixed(1)} mi`;
+  return `${mi.toFixed(0)} mi`;
+}
+
+function readGeoCache() {
+  try {
+    const raw = localStorage.getItem(GEO_CACHE_KEY);
+    if (!raw) return null;
+    const x = JSON.parse(raw);
+    if (!x?.lat || !x?.lng || !x?.ts) return null;
+    if (Date.now() - x.ts > GEO_TTL_MS) return null;
+    return { lat: x.lat, lng: x.lng };
+  } catch {
+    return null;
+  }
+}
+
+function writeGeoCache(lat, lng) {
+  try {
+    localStorage.setItem(
+      GEO_CACHE_KEY,
+      JSON.stringify({ lat, lng, ts: Date.now() }),
+    );
+  } catch {}
+}
+
+async function getDeviceCoords() {
+  // return cached if fresh
+  const cached = readGeoCache();
+  if (cached) return cached;
+
+  return await new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        writeGeoCache(lat, lng);
+        resolve({ lat, lng });
+      },
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 7000, maximumAge: 300000 },
+    );
   });
 }
 
@@ -594,11 +707,17 @@ async function showNextSuggestion() {
   ghWhy.textContent = `Because you said you’re ${modeLabel(ghMode)} · ${timeBucket()}`;
   ghTitle.textContent = next.title || "(Untitled)";
   ghBody.textContent = next.body || "";
+
+  // Optional: show distance in the GH widget if present
+  const distText =
+    next.distance_m != null ? fmtMilesFromMeters(next.distance_m) : "";
+  const distPart = distText ? ` · ${distText} away` : "";
+
   const tagText =
     Array.isArray(next.tags) && next.tags.length
       ? ` · Tags: ${next.tags.join(", ")}`
       : "";
-  ghMeta.textContent = `Score: ${next.score ?? 0}${tagText}`;
+  ghMeta.textContent = `Score: ${next.score ?? 0}${distPart}${tagText}`;
 
   ghHint.textContent = currentSession
     ? "Learning from your Yes/No."
@@ -629,7 +748,6 @@ async function showNextSuggestion() {
       await loadPosts();
 
       // If user already picked a mode, refresh the next suggestion after posts load
-      if (ghMode) await showNextSuggestion();
       if (ghMode) await showNextSuggestion();
       else renderGhEmpty();
     },
@@ -760,6 +878,11 @@ async function showNextSuggestion() {
       return;
     }
 
+    if (!selectedVenue?.lat || !selectedVenue?.lng) {
+      postMsg.textContent = "Please pick a location from the dropdown.";
+      return;
+    }
+
     const { data, error } = await supabase.rpc("wtd_create_post", {
       p_place_id: placeId,
       p_type: type,
@@ -768,12 +891,20 @@ async function showNextSuggestion() {
       p_body: body || null,
       p_starts_at: starts_at || null,
       p_ends_at: ends_at || null,
+
+      p_venue_name: selectedVenue.name,
+      p_address_text: selectedVenue.address_text,
+      p_lat: selectedVenue.lat,
+      p_lng: selectedVenue.lng,
     });
 
     if (error) {
       postMsg.textContent = error.message;
       return;
     }
+
+    selectedVenue = null;
+    if (venueSearchEl) venueSearchEl.value = "";
 
     // Reset form state
     const typeEl = document.getElementById("type");
@@ -847,15 +978,65 @@ async function refreshFollowUI() {
 async function loadPosts() {
   postsEl.innerHTML = `<div class="text-muted">Loading…</div>`;
 
-  // ✅ load posts for this place (NO inserts here)
-  const { data, error } = await supabase
-    // Use your scoring view if it exists; otherwise swap to "posts"
-    .from("v_post_scores")
-    .select(
-      "id, place_id, author_id, type, topic, title, body, score, starts_at, ends_at",
-    )
-    .eq("place_id", placeId)
-    .order("score", { ascending: false });
+  const band = ghDistance?.value || "near";
+  const radius = radiusMetersForBand(band);
+
+  let data, error;
+
+  // If user selects Any, don't use geo — just load all (existing behavior)
+  if (!radius) {
+    const resp = await supabase
+      .from("v_post_scores")
+      .select(
+        "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng",
+      )
+      .eq("place_id", placeId)
+      .order("score", { ascending: false });
+
+    data = resp.data;
+    error = resp.error;
+  } else {
+    // Ask for device location (cached)
+    const coords = await getDeviceCoords();
+
+    if (!coords) {
+      // Permission denied / unavailable → fallback to normal list
+      const resp = await supabase
+        .from("v_post_scores")
+        .select(
+          "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng",
+        )
+        .eq("place_id", placeId)
+        .order("score", { ascending: false });
+
+      data = resp.data;
+      error = resp.error;
+
+      // Optional: hint (non-blocking)
+      if (ghHint) {
+        ghHint.textContent =
+          "Enable location to filter by distance (or set Distance to Any).";
+      }
+    } else {
+      // Use RPC: only posts with coords within radius
+      const resp = await supabase.rpc("wtd_posts_near", {
+        p_place_id: placeId,
+        p_lat: coords.lat,
+        p_lng: coords.lng,
+        p_radius_m: radius,
+        p_limit: 200,
+      });
+
+      data = resp.data;
+      error = resp.error;
+
+      if (ghHint) {
+        ghHint.textContent = currentSession
+          ? "Learning from your Yes/No."
+          : "Log in to personalize suggestions.";
+      }
+    }
+  }
 
   if (error) {
     console.log("LOAD POSTS ERROR:", error);
@@ -867,44 +1048,75 @@ async function loadPosts() {
 
   lastPosts = data || [];
 
-  // Fetch tags from base posts table (so we don't require v_post_scores to include tags)
-  try {
-    const ids = lastPosts.map((p) => p.id).filter(Boolean);
-    if (ids.length) {
-      const { data: tagsData, error: tagsErr } = await supabase
-        .from("posts")
-        .select("id, tags")
-        .in("id", ids);
-
-      if (!tagsErr && Array.isArray(tagsData)) {
-        const tagMap = new Map(tagsData.map((r) => [r.id, r.tags || []]));
-        lastPosts = lastPosts.map((p) => ({
-          ...p,
-          tags: tagMap.get(p.id) || [],
-        }));
-      }
-    }
-  } catch (e) {
-    console.log("Tags fetch merge error:", e);
-  }
+  // Hide expired events (works for both normal list + nearby RPC)
   const now = new Date();
-  lastPosts = (data || []).filter((p) => {
+  lastPosts = lastPosts.filter((p) => {
     if ((p.type || "general") !== "event") return true;
 
-    // If event has an explicit end, hide it once it’s passed.
     if (p.ends_at) return new Date(p.ends_at) >= now;
 
-    // If only a start exists, treat it as valid for 4 hours after start.
     if (p.starts_at) {
       const start = new Date(p.starts_at);
       const endGuess = new Date(start.getTime() + 4 * 60 * 60 * 1000);
       return endGuess >= now;
     }
 
-    // If no timestamps exist, keep it (legacy events / “timeless”)
     return true;
   });
+
   renderPosts(lastPosts);
+  // If your place.html has a map panel, refresh pins after posts load
+  await renderMapFromPosts();
+}
+
+// Map renderer (global so it persists and can be called after every loadPosts)
+async function renderMapFromPosts() {
+  const mapEl = document.getElementById("map");
+  if (!mapEl) return; // map panel not on this page
+
+  try {
+    await window.WTDLoadGoogleMaps();
+  } catch {
+    mapEl.innerHTML = `<div class="text-muted small">Map unavailable.</div>`;
+    return;
+  }
+
+  const pts = (lastPosts || [])
+    .filter((p) => p.lat != null && p.lng != null)
+    .map((p) => ({ p, pos: { lat: Number(p.lat), lng: Number(p.lng) } }));
+
+  if (!pts.length) {
+    mapEl.innerHTML = `<div class="text-muted small">No mapped posts yet.</div>`;
+    return;
+  }
+
+  // Init map once
+  if (!map) {
+    map = new google.maps.Map(mapEl, {
+      center: pts[0].pos,
+      zoom: 12,
+      mapTypeControl: false,
+      streetViewControl: false,
+    });
+  }
+
+  // Clear old markers
+  markers.forEach((m) => m.setMap(null));
+  markers = [];
+
+  const bounds = new google.maps.LatLngBounds();
+
+  pts.forEach(({ p, pos }) => {
+    const m = new google.maps.Marker({ position: pos, map });
+    m.addListener("click", () => {
+      const txt = `${p.title || ""}\n${p.venue_name || ""}\n${p.address_text || ""}`;
+      alert(txt.trim());
+    });
+    markers.push(m);
+    bounds.extend(pos);
+  });
+
+  map.fitBounds(bounds);
 }
 
 function renderPosts(posts) {
@@ -940,16 +1152,19 @@ function renderPosts(posts) {
   }
 
   if (!list.length) {
-    postsEl.innerHTML = `<div class="alert alert-secondary">${
-      q ? "No posts match your search." : "No posts for this filter yet."
-    }</div>`;
+    postsEl.innerHTML = `
+      <div class="wtd-empty sheet p-3">
+        <div class="fw-semibold mb-1">${q ? "No posts match your search." : "No posts for this filter yet."}</div>
+        <div class="text-muted small">Try a different filter, or create the first post for this place.</div>
+      </div>
+    `;
     return;
   }
 
   postsEl.innerHTML = "";
   list.forEach((p) => {
     const div = document.createElement("div");
-    div.className = "card mb-3";
+    div.className = "card sheet post-card mb-3";
 
     const isEvent = (p.type || "general").toLowerCase() === "event";
     const whenText = isEvent ? formatEventRange(p.starts_at, p.ends_at) : "";
@@ -957,33 +1172,41 @@ function renderPosts(posts) {
       ? `<div class="text-muted small mb-2">📅 ${escapeHtml(whenText)}</div>`
       : "";
 
+    // NEW: distance line if RPC returned distance_m
+    const distText =
+      p.distance_m != null ? fmtMilesFromMeters(p.distance_m) : "";
+    const distHtml = distText
+      ? `<div class="text-muted small mb-2">📍 ${escapeHtml(distText)} away</div>`
+      : "";
+
     div.innerHTML = `
-      <div class="card-body">
+      <div class="card-body post-body">
         <div class="d-flex justify-content-between align-items-start gap-2">
           <div>
-            <div class="mb-2">
+            <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
               ${typeBadge(p.type)}
               ${topicBadge(p.topic)}
             </div>
-            <h5 class="mb-2">${escapeHtml(p.title || "(Untitled)")}</h5>
+            <div class="post-title mb-2">${escapeHtml(p.title || "(Untitled)")}</div>
             ${whenHtml}
+            ${distHtml}
           </div>
-          <span class="text-muted small">Score: ${p.score ?? 0}</span>
+          <span class="post-score text-muted small">Score: ${p.score ?? 0}</span>
         </div>
 
-        <p class="mb-3">${escapeHtml(p.body || "")}</p>
+        <div class="post-text mb-3">${escapeHtml(p.body || "")}</div>
 
-<div class="d-flex flex-wrap gap-2">
-  <button class="btn btn-sm btn-outline-primary" onclick="vote('${p.id}', 1)">👍</button>
-  <button class="btn btn-sm btn-outline-secondary" onclick="vote('${p.id}', -1)">👎</button>
+<div class="d-flex flex-wrap gap-2 align-items-center">
+  <button class="btn btn-sm wtd-iconbtn" onclick="vote('${p.id}', 1)">👍</button>
+  <button class="btn btn-sm wtd-iconbtn" onclick="vote('${p.id}', -1)">👎</button>
 
   ${
     isOwner(p)
       ? `
     <div class="ms-auto d-flex gap-2">
-      <button class="btn btn-sm btn-outline-dark" data-action="edit" data-id="${p.id}">Edit</button>
-      <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${p.id}">Delete</button>
-    </div>
+      <button class="btn btn-sm wtd-actionbtn" data-action="edit" data-id="${p.id}">Edit</button>
+      <button class="btn btn-sm wtd-dangerbtn" data-action="delete" data-id="${p.id}">Delete</button>
+     </div>
   `
       : `<div class="ms-auto"></div>`
   }
@@ -998,29 +1221,29 @@ function renderPosts(posts) {
 function topicBadge(topic) {
   const t = (topic || "everyday").toLowerCase();
   const map = {
-    food_drink: { label: "FOOD", cls: "bg-warning text-dark" },
-    outdoors: { label: "OUTDOORS", cls: "bg-success" },
-    history: { label: "HISTORY", cls: "bg-info text-dark" },
-    events: { label: "Entertainment", cls: "bg-primary" },
-    attractions: { label: "ATTRACTIONS", cls: "bg-secondary" },
-    nightlife: { label: "NIGHTLIFE", cls: "bg-dark" },
-    legends: { label: "LEGENDS", cls: "bg-danger" },
-    everyday: { label: "EVERYDAY", cls: "bg-light text-dark border" },
+    food_drink: { label: "Food & Drink" },
+    outdoors: { label: "Outdoors" },
+    history: { label: "History" },
+    events: { label: "Entertainment" },
+    attractions: { label: "Attractions" },
+    nightlife: { label: "Nightlife" },
+    legends: { label: "Legends & Lore" },
+    everyday: { label: "Everyday" },
   };
   const x = map[t] || map.everyday;
-  return `<span class="badge ${x.cls} ms-2">${x.label}</span>`;
+  return `<span class="wtd-badge wtd-topic-${t}">${escapeHtml(x.label)}</span>`;
 }
 
 function typeBadge(type) {
   const t = (type || "general").toLowerCase();
   const map = {
-    alert: { label: "ALERT", cls: "bg-danger" },
-    advice: { label: "ADVICE", cls: "bg-primary" },
-    event: { label: "EVENT", cls: "bg-success" },
-    general: { label: "GENERAL", cls: "bg-secondary" },
+    alert: { label: "Alert" },
+    advice: { label: "Advice" },
+    event: { label: "Event" },
+    general: { label: "General" },
   };
   const x = map[t] || map.general;
-  return `<span class="badge ${x.cls}">${x.label}</span>`;
+  return `<span class="wtd-badge wtd-type-${t}">${escapeHtml(x.label)}</span>`;
 }
 
 async function vote(postId, value) {

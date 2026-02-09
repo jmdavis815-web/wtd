@@ -7,138 +7,8 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <link href="css/styles.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- GH-Mind polish -->
-    <style>
-      :root {
-        --gh-accent: 99, 102, 241; /* indigo-ish */
-        --gh-accent2: 16, 185, 129; /* emerald-ish */
-      }
-
-      /* App shell background + layout */
-      body {
-        background:
-          radial-gradient(
-            900px 500px at 20% 0%,
-            rgba(var(--gh-accent), 0.1),
-            transparent 60%
-          ),
-          radial-gradient(
-            900px 500px at 90% 10%,
-            rgba(var(--gh-accent2), 0.1),
-            transparent 55%
-          ),
-          #f6f7fb;
-      }
-
-      .app-shell {
-        max-width: 980px;
-        margin: 0 auto;
-      }
-
-      /* Sticky top bar like an app */
-      .app-topbar {
-        position: sticky;
-        top: 0;
-        z-index: 50;
-        background: rgba(246, 247, 251, 0.85);
-        backdrop-filter: blur(10px);
-        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-      }
-
-      .app-topbar a,
-      .app-topbar button {
-        white-space: nowrap;
-      }
-
-      /* “Sheet” cards to feel widget-y */
-      .sheet {
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        border-radius: 16px;
-        box-shadow:
-          0 8px 18px rgba(0, 0, 0, 0.06),
-          0 1px 4px rgba(0, 0, 0, 0.04);
-      }
-
-      /* Make headings feel like an app */
-      .place-title {
-        font-size: clamp(1.4rem, 2.2vw, 2rem);
-        letter-spacing: -0.02em;
-      }
-
-      /* Optional: compact buttons slightly */
-      .btn.btn-sm {
-        padding-top: 0.35rem;
-        padding-bottom: 0.35rem;
-      }
-
-      /* Make GH card feel “featured” */
-      .gh-hero {
-        border: 1px solid rgba(var(--gh-accent), 0.25);
-        border-radius: 16px;
-        box-shadow:
-          0 10px 30px rgba(0, 0, 0, 0.08),
-          0 2px 10px rgba(0, 0, 0, 0.06);
-        overflow: hidden;
-      }
-
-      .gh-hero .gh-hero-head {
-        background: linear-gradient(
-          90deg,
-          rgba(var(--gh-accent), 0.14),
-          rgba(var(--gh-accent2), 0.1)
-        );
-        border-bottom: 1px solid rgba(var(--gh-accent), 0.18);
-      }
-
-      .gh-pill-group .btn {
-        border-radius: 999px !important;
-        padding-left: 0.85rem;
-        padding-right: 0.85rem;
-      }
-
-      /* When JS adds .active, make it pop */
-      .gh-pill-group .btn.active {
-        background: rgba(var(--gh-accent), 0.12) !important;
-        border-color: rgba(var(--gh-accent), 0.35) !important;
-        box-shadow: 0 0 0 4px rgba(var(--gh-accent), 0.1);
-      }
-
-      /* Suggestion box: nicer surface */
-      .gh-surface {
-        border-radius: 14px;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(6px);
-      }
-
-      /* Slightly larger GH title text */
-      #ghTitle {
-        letter-spacing: -0.01em;
-      }
-
-      /* Sticky on small screens so it feels like a “control bar” */
-      @media (max-width: 575.98px) {
-        #ghMindCard {
-          position: sticky;
-          top: 0.75rem;
-          z-index: 10;
-        }
-      }
-
-      /* Tiny pulse to draw attention once */
-      @keyframes ghPulse {
-        0% {
-          box-shadow: 0 0 0 0 rgba(var(--gh-accent), 0.18);
-        }
-        100% {
-          box-shadow: 0 0 0 14px rgba(var(--gh-accent), 0);
-        }
-      }
-      .gh-attention {
-        animation: ghPulse 1.2s ease-out 1;
-      }
-    </style>
   </head>
   <body class="py-0">
     <div class="app-topbar py-3">
@@ -180,123 +50,155 @@
         </div>
       </div>
 
-      <!-- GH-Mind: Take the wheel -->
-      <div class="card mt-3 gh-hero gh-attention sheet" id="ghMindCard">
-        <div class="gh-hero-head px-3 py-2">
-          <div
-            class="d-flex align-items-center justify-content-between flex-wrap gap-2"
-          >
+      <!-- GH-Mind: Take the wheel (Modern hero widget) -->
+      <section id="ghMindCard" class="sheet gh-attention mt-3 p-4 container">
+        <div
+          class="d-flex justify-content-between align-items-start gap-3 flex-wrap"
+        >
+          <div class="d-flex flex-column gap-1">
             <div class="d-flex align-items-center gap-2">
               <span class="badge text-bg-dark">GH-Mind</span>
-              <div class="fw-semibold">Take the wheel</div>
               <span class="text-muted small"
-                >Pick a vibe → get a suggestion</span
+                >Smart suggestions for this place</span
               >
             </div>
-            <span id="ghHint" class="text-muted small"></span>
+            <img
+              src="https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/sign/wtd/wtd_logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9hODZjMjgyZS1iYzY3LTRiNTItYmQ1My1mZDM4ODlkMmU0Y2YiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJ3dGQvd3RkX2xvZ28ucG5nIiwiaWF0IjoxNzcwNjA0NjYwLCJleHAiOjE4MDIxNDA2NjB9.DD08p2Gq8YRpnVIWTKHyEEQ9U84KGKdod32wr9X_g-U"
+              alt="WTD logo"
+              width="150px"
+            />
+            <div class="text-muted small">
+              Pick a vibe → get one suggestion.
+            </div>
+          </div>
+          <div class="text-muted small text-nowrap" id="ghHint"></div>
+        </div>
+
+        <div
+          class="mt-3 d-flex flex-wrap gap-2 align-items-center justify-content-between"
+        >
+          <!-- Mode pills -->
+          <div class="d-flex flex-wrap gap-2">
+            <button
+              class="mood-btn btn btn-sm btn-outline-secondary"
+              data-mode="bored"
+              type="button"
+            >
+              I’m bored
+            </button>
+            <button
+              class="mood-btn btn btn-sm btn-outline-secondary"
+              data-mode="hungry"
+              type="button"
+            >
+              I’m hungry
+            </button>
+            <button
+              class="mood-btn btn btn-sm btn-outline-secondary"
+              data-mode="idk"
+              type="button"
+            >
+              I don’t know
+            </button>
+          </div>
+
+          <!-- Distance -->
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small">Distance</span>
+            <select
+              id="ghDistance"
+              class="form-select form-select-sm"
+              style="width: auto"
+            >
+              <option value="near" selected>Near</option>
+              <option value="medium">Medium</option>
+              <option value="far">Far</option>
+              <option value="any">Any</option>
+            </select>
           </div>
         </div>
-        <div class="card-body">
-          <div
-            class="d-flex flex-wrap gap-2 align-items-center justify-content-between"
+
+        <!-- Suggestion surface -->
+        <div id="ghSuggestionWrap" class="mt-4 d-none">
+          <div class="gh-surface p-3">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <div id="ghWhy" class="text-muted small mb-1"></div>
+                <div id="ghTitle" class="h5 mb-1"></div>
+                <div id="ghBody" class="text-muted"></div>
+              </div>
+              <div class="text-muted small text-nowrap" id="ghMeta"></div>
+            </div>
+
+            <div class="mt-3 d-flex flex-wrap gap-2">
+              <button id="ghYes" class="btn btn-sm btn-primary" type="button">
+                ✅ Yes
+              </button>
+              <button
+                id="ghNo"
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+              >
+                ❌ No
+              </button>
+              <button
+                id="ghSkip"
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+              >
+                Not now
+              </button>
+
+              <div class="ms-auto d-flex gap-2">
+                <button
+                  id="ghUp"
+                  class="btn btn-sm btn-outline-primary"
+                  type="button"
+                >
+                  👍
+                </button>
+                <button
+                  id="ghDown"
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                >
+                  👎
+                </button>
+              </div>
+            </div>
+
+            <div id="ghMsg" class="text-muted small mt-2"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sheet mt-3 container">
+        <div class="p-3 d-flex align-items-center justify-content-between">
+          <div>
+            <div class="fw-semibold">Map</div>
+            <div class="text-muted small">See post locations</div>
+          </div>
+          <button
+            class="btn btn-sm btn-outline-dark"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#mapCollapse"
           >
-            <div class="d-flex flex-wrap gap-2 align-items-center">
-              <div
-                class="btn-group gh-pill-group"
-                role="group"
-                aria-label="GH-Mind modes"
-              >
-                <button
-                  class="btn btn-sm btn-outline-dark"
-                  data-mode="bored"
-                  type="button"
-                >
-                  I’m bored
-                </button>
-                <button
-                  class="btn btn-sm btn-outline-dark"
-                  data-mode="hungry"
-                  type="button"
-                >
-                  I’m hungry
-                </button>
-                <button
-                  class="btn btn-sm btn-outline-dark"
-                  data-mode="idk"
-                  type="button"
-                >
-                  I don’t know
-                </button>
-              </div>
-            </div>
+            Map
+          </button>
+        </div>
 
-            <div class="d-flex align-items-center gap-2">
-              <span class="text-muted small">Distance</span>
-              <select
-                id="ghDistance"
-                class="form-select form-select-sm"
-                style="width: auto"
-              >
-                <option value="near" selected>Near</option>
-                <option value="medium">Medium</option>
-                <option value="far">Far</option>
-                <option value="any">Any</option>
-              </select>
-            </div>
-          </div>
-
-          <div id="ghSuggestionWrap" class="mt-3 d-none">
-            <div class="gh-surface p-3">
-              <div
-                class="d-flex justify-content-between align-items-start gap-2"
-              >
-                <div>
-                  <div id="ghWhy" class="text-muted small mb-1"></div>
-                  <div id="ghTitle" class="h5 mb-1"></div>
-                  <div id="ghBody" class="text-muted"></div>
-                </div>
-                <div class="text-muted small text-nowrap" id="ghMeta"></div>
-              </div>
-
-              <div class="mt-3 d-flex flex-wrap gap-2">
-                <button id="ghYes" class="btn btn-sm btn-dark" type="button">
-                  ✅ Yes
-                </button>
-                <button id="ghNo" class="btn btn-sm btn-outline-dark">
-                  ❌ No
-                </button>
-                <button id="ghSkip" class="btn btn-sm btn-outline-secondary">
-                  Not now
-                </button>
-
-                <div class="ms-auto d-flex gap-2">
-                  <button
-                    id="ghUp"
-                    class="btn btn-sm btn-outline-primary"
-                    type="button"
-                  >
-                    👍
-                  </button>
-                  <button
-                    id="ghDown"
-                    class="btn btn-sm btn-outline-secondary"
-                    type="button"
-                  >
-                    👎
-                  </button>
-                </div>
-              </div>
-
-              <div id="ghMsg" class="text-muted small mt-2"></div>
-            </div>
+        <div id="mapCollapse" class="collapse">
+          <div class="p-3 pt-0">
+            <div id="map" style="height: 360px; border-radius: 14px"></div>
           </div>
         </div>
-      </div>
+      </section>
 
       <!-- Browse Posts (collapsed by default) -->
-      <div class="card mt-3 sheet">
+      <section class="sheet mt-3 container">
         <div
-          class="card-body d-flex align-items-center justify-content-between gap-2"
+          class="p-3 d-flex align-items-center justify-content-between gap-2"
         >
           <div>
             <div class="fw-semibold">Browse posts</div>
@@ -317,8 +219,7 @@
         </div>
 
         <div id="browseCollapse" class="collapse">
-          +
-          <div class="card-body pt-0">
+          <div class="p-3 pt-0">
             <div class="row g-2 align-items-center">
               <div class="col-12 col-md-6">
                 <input
@@ -372,12 +273,12 @@
             <div id="posts" class="mt-3"></div>
           </div>
         </div>
-      </div>
+      </section>
 
       <!-- Create Post (only shows when logged in; collapsed by default) -->
-      <div id="createPostCard" class="card mt-3 d-none sheet">
+      <section id="createPostCard" class="sheet mt-3 d-none container">
         <div
-          class="card-body d-flex align-items-center justify-content-between gap-2"
+          class="p-3 d-flex align-items-center justify-content-between gap-2"
         >
           <div>
             <div class="fw-semibold">Create a post</div>
@@ -398,7 +299,7 @@
         </div>
 
         <div id="createCollapse" class="collapse">
-          <div class="card-body pt-0">
+          <div class="p-3 pt-0">
             <form id="postForm" class="mt-3">
               <div class="row g-2">
                 <div class="col-12 col-md-3">
@@ -421,6 +322,20 @@
                     <option value="nightlife">Nightlife</option>
                     <option value="legends">Legends & Lore</option>
                   </select>
+                </div>
+
+                <div class="col-12">
+                  <input
+                    id="venueSearch"
+                    class="form-control"
+                    placeholder="Add a location (restaurant, venue, park, address)…"
+                    autocomplete="off"
+                    required
+                  />
+                  <div class="form-text">
+                    Pick from the dropdown so we can calculate distance + map
+                    it.
+                  </div>
                 </div>
 
                 <div class="col-12 col-md-6">
@@ -487,12 +402,14 @@
             </form>
           </div>
         </div>
-      </div>
+      </section>
 
       <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
       <script src="js/supabase.js"></script>
       <script src="js/utils.js"></script>
       <script src="js/auth-ui.js"></script>
+      <script src="js/maps-config.js"></script>
+      <script src="js/maps-loader.js"></script>
       <script src="js/place.js"></script>
     </main>
   </body>

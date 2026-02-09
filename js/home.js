@@ -68,8 +68,10 @@
 
   function makeRow(p) {
     const li = document.createElement("li");
-    li.className = "list-group-item";
-    li.innerHTML = `<a href="place.html?id=${p.id}">${escapeHtml(displayText(p))}</a>`;
+    li.className = "list-group-item list-group-item-action gh-surface";
+    li.innerHTML = `<a href="place.html?id=${p.id}">${escapeHtml(
+      displayText(p),
+    )}</a>`;
     return li;
   }
 
@@ -95,7 +97,7 @@
     }
 
     myWrap.classList.remove("d-none");
-    myUl.innerHTML = `<li class="list-group-item text-muted">Loading…</li>`;
+    myUl.innerHTML = `<li class="list-group-item gh-surface text-muted">Loading…</li>`;
 
     const { data, error } = await supabase
       .from("follows")
@@ -105,7 +107,7 @@
       .eq("user_id", currentSession.user.id);
 
     if (error) {
-      myUl.innerHTML = `<li class="list-group-item text-danger">Could not load My Places: ${escapeHtml(
+      myUl.innerHTML = `<li class="list-group-item gh-surface text-danger">Could not load My Places: ${escapeHtml(
         error.message,
       )}</li>`;
       return;
@@ -117,14 +119,14 @@
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
     if (!places.length) {
-      myUl.innerHTML = `<li class="list-group-item text-muted">You’re not following any places yet.</li>`;
+      myUl.innerHTML = `<li class="list-group-item gh-surface text-muted">You’re not following any places yet.</li>`;
       return;
     }
 
     myUl.innerHTML = "";
     places.forEach((p) => {
       const li = document.createElement("li");
-      li.className = "list-group-item";
+      li.className = "list-group-item list-group-item-action gh-surface";
       li.innerHTML = `<a href="place.html?id=${p.id}">${escapeHtml(displayText(p))}</a>`;
       myUl.appendChild(li);
     });
@@ -149,7 +151,7 @@
       return;
     }
 
-    ul.innerHTML = `<li class="list-group-item text-muted">Searching…</li>`;
+    ul.innerHTML = `<li class="list-group-item gh-surface text-muted">Searching…</li>`;
     showHint(`Searching for “${query}”…`);
 
     const pattern = `%${query}%`;
@@ -167,7 +169,7 @@
     if (lastSearch !== query) return;
 
     if (error) {
-      ul.innerHTML = `<li class="list-group-item text-danger">Could not search places: ${escapeHtml(
+      ul.innerHTML = `<li class="list-group-item gh-surface text-danger">Could not search places: ${escapeHtml(
         error.message,
       )}</li>`;
       showHint("Search error.");
@@ -175,7 +177,7 @@
     }
 
     if (!data?.length) {
-      ul.innerHTML = `<li class="list-group-item text-muted">No matches.</li>`;
+      ul.innerHTML = `<li class="list-group-item gh-surface text-muted">No matches.</li>`;
       showHint("No matches. You can add it below (when logged in).");
       return;
     }
@@ -258,4 +260,61 @@
   await loadMyPlaces();
   clearPlacesUI();
   showHint("Start typing to see matching places.");
+})();
+
+// ----:contentReference[oaicite:9]{index=9}world city picker ----
+(async function wireGoogleCityAutocomplete() {
+  if (!searchEl) return;
+
+  try {
+    await window.WTDLoadGoogleMaps();
+
+    const ac = new google.maps.places.Autocomplete(searchEl, {
+      types: ["(cities)"], // cities only
+      fields: ["place_id", "name", "address_components", "geometry"],
+    });
+
+    ac.addListener("place_changed", async () => {
+      const place = ac.getPlace();
+      if (!place?.place_id || !place?.geometry?.location) return;
+
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+
+      // Pull admin1/state + country code from address components
+      let admin1 = null;
+      let countryCode = null;
+
+      for (const c of place.address_components || []) {
+        if (c.types?.includes("administrative_area_level_1"))
+          admin1 = c.short_name;
+        if (c.types?.includes("country")) countryCode = c.short_name;
+      }
+
+      // Upsert into your DB:
+      // ✅ Best: create an RPC that upserts by (provider, provider_place_id)
+      const { data, error } = await supabase.rpc("wtd_upsert_place_google", {
+        p_provider_place_id: place.place_id,
+        p_name: place.name,
+        p_region: admin1,
+        p_country_code: countryCode,
+        p_lat: lat,
+        p_lng: lng,
+      });
+
+      if (error) {
+        console.log(error);
+        showHint("Could not save that place.");
+        return;
+      }
+
+      // RPC returns the row (or at least its id)
+      const newId = data?.id || data;
+      if (!newId) return;
+
+      window.location.href = `place.html?id=${encodeURIComponent(newId)}`;
+    });
+  } catch (e) {
+    console.log("Google city autocomplete not available:", e);
+  }
 })();

@@ -1,0 +1,416 @@
+:root {
+  --gh-accent: 99, 102, 241; /* indigo */
+  --gh-accent2: 16, 185, 129; /* emerald */
+
+  --bg-main: #0b0e14;
+
+  --border-soft: rgba(255, 255, 255, 0.09);
+  --border-accent: rgba(var(--gh-accent), 0.35);
+
+  --text-main: #e6e8ee;
+  --text-muted: rgba(230, 232, 238, 0.72);
+  --text-soft: rgba(230, 232, 238, 0.86);
+}
+
+/* ==========================================
+   List groups (dark)
+   ========================================== */
+.list-group {
+  --bs-list-group-bg: transparent;
+  --bs-list-group-color: rgba(255, 255, 255, 0.92);
+  --bs-list-group-border-color: rgba(255, 255, 255, 0.12);
+  --bs-list-group-action-hover-bg: rgba(255, 255, 255, 0.06);
+  --bs-list-group-action-active-bg: rgba(var(--gh-accent), 0.18);
+  --bs-list-group-action-active-color: rgba(255, 255, 255, 0.95);
+}
+
+.list-group-item {
+  background: rgba(10, 12, 18, 0.45) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.list-group-item a {
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: none;
+  display: block;
+  width: 100%;
+}
+
+.list-group-item a:hover {
+  color: rgba(255, 255, 255, 1);
+}
+
+/* ==========================================
+   App background — texture + glows + film
+   ========================================== */
+body {
+  color: var(--text-main);
+  background-color: var(--bg-main);
+  background-image:
+    radial-gradient(
+      900px 520px at 18% 0%,
+      rgba(var(--gh-accent), 0.14),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 520px at 92% 12%,
+      rgba(var(--gh-accent2), 0.12),
+      transparent 58%
+    ),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.55)),
+    url("https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/sign/wtd/dark_texture.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9hODZjMjgyZS1iYzY3LTRiNTItYmQ1My1mZDM4ODlkMmU0Y2YiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJ3dGQvZGFya190ZXh0dXJlLnBuZyIsImlhdCI6MTc3MDYwMTE2OSwiZXhwIjoxODAyMTM3MTY5fQ.fC-iczUwV7nL_e79H8sqJy494Iip8VirpTi_EW9SJqo");
+  background-repeat: no-repeat;
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    center;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+/* ==========================================
+   Sticky top bar (glass)
+   ========================================== */
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(10, 12, 18, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ==========================================
+   Readability upgrades
+   ========================================== */
+.text-muted {
+  color: var(--text-muted) !important;
+}
+
+.place-title,
+h1,
+h2,
+h3,
+h4,
+h5 {
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+}
+
+a {
+  color: rgba(255, 255, 255, 0.9);
+}
+a:hover {
+  color: rgba(255, 255, 255, 1);
+}
+
+/* ==========================================
+   App surfaces
+   ========================================== */
+.sheet {
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(21, 26, 35, 0.86),
+    rgba(27, 34, 48, 0.82)
+  );
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Map container */
+#map {
+  background: rgba(11, 14, 20, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ==========================================
+   Forms (dark)
+   ========================================== */
+.form-control,
+.form-select {
+  background: rgba(10, 12, 18, 0.55) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 12px !important;
+}
+
+.form-control::placeholder {
+  color: rgba(230, 232, 238, 0.55) !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: rgba(var(--gh-accent), 0.65) !important;
+  box-shadow: 0 0 0 0.25rem rgba(var(--gh-accent), 0.18) !important;
+}
+
+/* ==========================================
+   Buttons (modern pills)
+   ========================================== */
+section .mood-btn {
+  font-size: 20px;
+}
+
+.btn {
+  border-radius: 12px !important;
+  border-width: 1px !important;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.btn-outline-dark,
+.btn-outline-secondary,
+.btn-outline-primary,
+.btn-outline-danger,
+.btn-outline-success {
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.btn-outline-dark:hover,
+.btn-outline-secondary:hover,
+.btn-outline-primary:hover,
+.btn-outline-danger:hover,
+.btn-outline-success:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.26) !important;
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: rgba(var(--gh-accent), 0.88) !important;
+  border-color: rgba(var(--gh-accent), 0.88) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.btn-primary:hover {
+  background: rgba(var(--gh-accent), 0.96) !important;
+  border-color: rgba(var(--gh-accent), 0.96) !important;
+}
+
+/* Active mode pill */
+[data-mode].active {
+  background: rgba(var(--gh-accent), 0.2) !important;
+  border-color: rgba(var(--gh-accent), 0.65) !important;
+  box-shadow: 0 0 0 0.2rem rgba(var(--gh-accent), 0.12) !important;
+}
+
+/* Badges in dark mode */
+.badge.text-bg-dark {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ==========================================
+   GH Hero styling
+   ========================================== */
+#ghMindCard.gh-attention {
+  border: 1px solid rgba(var(--gh-accent), 0.3);
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.62),
+    0 0 0 1px rgba(var(--gh-accent), 0.1) inset;
+}
+
+#ghMindCard::before {
+  content: "";
+  display: block;
+  height: 3px;
+  margin: -1px -1px 14px -1px;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--gh-accent), 0.75),
+    rgba(var(--gh-accent2), 0.65)
+  );
+  opacity: 0.85;
+}
+
+/* Suggestion surface */
+.gh-surface {
+  background: rgba(8, 10, 14, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+#ghTitle {
+  letter-spacing: -0.02em;
+}
+#ghBody {
+  color: var(--text-soft) !important;
+}
+#ghMeta {
+  color: rgba(230, 232, 238, 0.7) !important;
+}
+
+/* Mobile: keep hero handy */
+@media (max-width: 575.98px) {
+  #ghMindCard {
+    position: sticky;
+    top: 0.75rem;
+    z-index: 10;
+  }
+}
+
+/* Attention pulse */
+@keyframes ghPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--gh-accent), 0.25);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgba(var(--gh-accent), 0);
+  }
+}
+.gh-attention {
+  animation: ghPulse 1.2s ease-out 1;
+}
+
+.form-text {
+  color: white;
+}
+
+diff --git a/css/styles.css b/css/styles.css
+@@
+ /* ==========================================
+    GH Hero styling
+    ========================================== */
+@@
+ .gh-attention {
+  animation: ghPulse 1.2s ease-out 1;
+}
+
+/* ==========================================
+   Posts — theme upgrade
+   ========================================== */
+.post-card {
+  overflow: hidden;
+}
+.post-body {
+  padding: 1rem;
+}
+.post-title {
+  font-weight: 650;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.94);
+}
+.post-text {
+  color: rgba(230, 232, 238, 0.86);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.post-score {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+}
+
+/* Modern “chips” (replaces bootstrap badges for posts) */
+.wtd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: none;
+}
+
+/* Type chips */
+.wtd-type-alert {
+  border-color: rgba(255, 99, 99, 0.35);
+  background: rgba(255, 99, 99, 0.08);
+}
+.wtd-type-advice {
+  border-color: rgba(var(--gh-accent), 0.45);
+  background: rgba(var(--gh-accent), 0.12);
+}
+.wtd-type-event {
+  border-color: rgba(var(--gh-accent2), 0.45);
+  background: rgba(var(--gh-accent2), 0.1);
+}
+.wtd-type-general {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Topic chips (subtle) */
+.wtd-topic-food_drink {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.wtd-topic-outdoors {
+  border-color: rgba(var(--gh-accent2), 0.28);
+}
+.wtd-topic-history {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.wtd-topic-events {
+  border-color: rgba(var(--gh-accent), 0.28);
+}
+.wtd-topic-attractions {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.wtd-topic-nightlife {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.wtd-topic-legends {
+  border-color: rgba(255, 99, 99, 0.28);
+}
+.wtd-topic-everyday {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Post action buttons */
+.wtd-iconbtn {
+  border-radius: 12px !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  min-width: 44px;
+}
+.wtd-iconbtn:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.26) !important;
+  transform: translateY(-1px);
+}
+.wtd-actionbtn {
+  color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+.wtd-actionbtn:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.26) !important;
+  transform: translateY(-1px);
+}
+.wtd-dangerbtn {
+  color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(255, 99, 99, 0.3) !important;
+  background: rgba(255, 99, 99, 0.08) !important;
+}
+.wtd-dangerbtn:hover {
+  background: rgba(255, 99, 99, 0.12) !important;
+  border-color: rgba(255, 99, 99, 0.44) !important;
+  transform: translateY(-1px);
+}
+
+/* Empty state */
+.wtd-empty {
+  border-radius: 16px;
+}

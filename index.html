@@ -7,51 +7,68 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <link href="css/styles.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   </head>
-  <body class="container py-4 px-3">
-    <header
-      class="d-flex flex-wrap justify-content-between align-items-center gap-2"
-    >
-      <h1>What To Do</h1>
+  <body class="py-0">
+    <!-- Sticky glass topbar (matches place.html) -->
+    <div class="app-topbar py-3">
+      <div class="app-shell px-3">
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <div class="d-flex align-items-center gap-2">
+            <div class="fw-semibold">What To Do</div>
+          </div>
 
-      <div
-        class="d-flex align-items-center gap-2 ms-auto flex-wrap justify-content-end"
-      >
-        <button
-          id="notifBtn"
-          type="button"
-          class="btn btn-sm btn-outline-dark d-none position-relative"
-          data-bs-toggle="modal"
-          data-bs-target="#notifModal"
-          title="Notifications"
-        >
-          🔔
-          <span
-            id="notifBadge"
-            class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none"
-            >0</span
-          >
-        </button>
+          <div class="d-flex align-items-center gap-2">
+            <button
+              id="notifBtn"
+              type="button"
+              class="btn btn-sm btn-outline-dark d-none position-relative"
+              data-bs-toggle="modal"
+              data-bs-target="#notifModal"
+              title="Notifications"
+            >
+              🔔
+              <span
+                id="notifBadge"
+                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none"
+                >0</span
+              >
+            </button>
 
-        <a href="login.html" id="loginLink">Login</a>
-        <button id="logoutBtn" class="btn btn-sm btn-outline-secondary d-none">
-          Logout
-        </button>
-        <span id="authStatus" class="text-muted small"></span>
+            <span id="authStatus" class="text-muted small"></span>
+            <a
+              id="loginLink"
+              href="login.html"
+              class="btn btn-sm btn-outline-primary"
+              >Login</a
+            >
+            <button
+              id="logoutBtn"
+              class="btn btn-sm btn-outline-secondary d-none"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
       </div>
-    </header>
-
-    <div id="myPlacesWrap" class="mt-4 d-none">
-      <h3>My Places</h3>
-      <ul id="myPlaces" class="list-group mt-3"></ul>
     </div>
 
-    <!-- Search-first places -->
-    <div class="mt-4">
-      <h3 class="mb-2">Find a place</h3>
-      <div class="row g-2">
-        <div class="col-12 col-md-8">
+    <main class="app-shell px-3 py-3 pb-5">
+      <!-- Hero / main action -->
+      <section class="sheet p-4 container">
+        <div
+          class="d-flex justify-content-between align-items-start gap-3 flex-wrap"
+        >
+          <div>
+            <h1 class="mb-1">Pick a place</h1>
+            <div class="text-muted small">
+              Search a city/town to see what’s happening.
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
           <input
             id="placeSearch"
             class="form-control"
@@ -61,47 +78,58 @@
           <div id="placesHint" class="form-text">
             Start typing to see matching places.
           </div>
+          <ul id="places" class="list-group mt-3"></ul>
         </div>
-      </div>
+      </section>
 
-      <ul id="places" class="list-group mt-3"></ul>
-    </div>
+      <!-- My Places -->
+      <section id="myPlacesWrap" class="sheet mt-3 d-none container">
+        <div class="p-3">
+          <div class="fw-semibold">My Places</div>
+          <div class="text-muted small">Places you follow.</div>
+          <ul id="myPlaces" class="list-group mt-3"></ul>
+        </div>
+      </section>
 
-    <div id="addPlaceCard" class="card mt-4 d-none">
-      <div class="card-body">
-        <h5 class="card-title">Add a place</h5>
-        <form id="placeForm" class="row g-2 mt-2">
-          <div class="col-12 col-md-5">
-            <input
-              id="placeName"
-              class="form-control"
-              placeholder="City / Town name"
-              required
-            />
-          </div>
-          <div class="col-12 col-md-3">
-            <input
-              id="placeAdmin1"
-              class="form-control"
-              placeholder="State/Region (optional)"
-            />
-          </div>
-          <div class="col-12 col-md-2">
-            <input
-              id="placeCountry"
-              class="form-control"
-              placeholder="Country (optional)"
-            />
-          </div>
-          <div class="col-12 col-md-2 d-grid">
-            <button class="btn btn-primary">Add</button>
-          </div>
-          <div class="col-12">
-            <div id="placeMsg" class="text-muted small"></div>
-          </div>
-        </form>
-      </div>
-    </div>
+      <!-- Add Place (only when logged in) -->
+      <section id="addPlaceCard" class="sheet mt-3 d-none container">
+        <div class="p-3">
+          <div class="fw-semibold">Add a place</div>
+          <div class="text-muted small">If it doesn’t exist yet, add it.</div>
+
+          <form id="placeForm" class="row g-2 mt-2">
+            <div class="col-12 col-md-5">
+              <input
+                id="placeName"
+                class="form-control"
+                placeholder="City / Town name"
+                required
+              />
+            </div>
+            <div class="col-12 col-md-3">
+              <input
+                id="placeAdmin1"
+                class="form-control"
+                placeholder="State/Region (optional)"
+              />
+            </div>
+            <div class="col-12 col-md-2">
+              <input
+                id="placeCountry"
+                class="form-control"
+                placeholder="Country (optional)"
+              />
+            </div>
+            <div class="col-12 col-md-2 d-grid">
+              <button class="btn btn-primary">Add</button>
+            </div>
+            <div class="col-12">
+              <div id="placeMsg" class="text-muted small"></div>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
 
     <div class="modal fade" id="notifModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-scrollable">
@@ -137,6 +165,8 @@
     <script src="js/utils.js"></script>
     <script src="js/auth-ui.js"></script>
     <script src="js/notifications.js"></script>
+    <script src="js/maps-config.js"></script>
+    <script src="js/maps-loader.js"></script>
     <script src="js/home.js"></script>
   </body>
 </html>
