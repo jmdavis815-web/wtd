@@ -2,6 +2,13 @@
 // NOTE: post.tags are auto-generated in DB via trigger (see SQL)
 // NOTE: post creation must use RPC wtd_create_post (direct INSERT on posts is revoked)
 // NOTE: map can optionally show last N "positive reactions" via RPC wtd_recent_positive_posts(p_place_id, p_limit)
+
+// ----------------------------------------------------------
+// Browse Posts paging (UI-only)
+// ----------------------------------------------------------
+const BROWSE_LIMIT = 5;
+let browseOffset = 0;
+
 // Allowed values (keeps DB enums/checks happy even if the DOM ever gets weird)
 const ALLOWED_POST_TYPES = new Set(["general", "advice", "event", "alert"]);
 const ALLOWED_TOPICS = new Set([
@@ -995,6 +1002,7 @@ async function showNextSuggestion() {
       filterButtons.forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       currentFilter = btn.dataset.filter;
+      browseOffset = 0; // reset paging when filter changes
       renderPosts(lastPosts);
     });
   });
@@ -1002,6 +1010,7 @@ async function showNextSuggestion() {
   // Search (title/body/tags) inside Browse Posts
   postSearchEl?.addEventListener("input", () => {
     currentSearch = (postSearchEl.value || "").trim().toLowerCase();
+    browseOffset = 0; // reset paging when search changes
     renderPosts(lastPosts);
   });
 
@@ -1412,6 +1421,9 @@ document
 function renderPosts(posts) {
   const q = (currentSearch || "").trim().toLowerCase();
 
+  // Clamp offset in case list shrinks (filter/search)
+  if (browseOffset < 0) browseOffset = 0;
+
   const base = (posts || []).filter((p) => {
     if (currentFilter === "all") return true;
     return (p.type || "general") === currentFilter;
@@ -1428,6 +1440,10 @@ function renderPosts(posts) {
           : "";
         return title.includes(q) || body.includes(q) || tags.includes(q);
       });
+
+  // Apply paging AFTER filter/search
+  if (browseOffset >= list.length) browseOffset = 0;
+  const visible = list.slice(browseOffset, browseOffset + BROWSE_LIMIT);
 
   if (filterHint) {
     const total = (posts || []).length;
@@ -1452,7 +1468,7 @@ function renderPosts(posts) {
   }
 
   postsEl.innerHTML = "";
-  list.forEach((p) => {
+  visible.forEach((p) => {
     const div = document.createElement("div");
     div.className = "card sheet post-card mb-3";
 
@@ -1512,6 +1528,17 @@ function renderPosts(posts) {
 
     postsEl.appendChild(div);
   });
+  // "Load more" button (only if there are more posts to show)
+  if (browseOffset + BROWSE_LIMIT < list.length) {
+    const more = document.createElement("button");
+    more.className = "btn btn-sm btn-outline-secondary w-100 mt-2";
+    more.textContent = "Load more";
+    more.onclick = () => {
+      browseOffset += BROWSE_LIMIT;
+      renderPosts(lastPosts);
+    };
+    postsEl.appendChild(more);
+  }
 }
 
 function topicBadge(topic) {
