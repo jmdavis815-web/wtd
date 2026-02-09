@@ -1,6 +1,7 @@
 // js/place.js
 // NOTE: post.tags are auto-generated in DB via trigger (see SQL)
 // NOTE: post creation must use RPC wtd_create_post (direct INSERT on posts is revoked)
+// NOTE: map can optionally show last N "positive reactions" via RPC wtd_recent_positive_posts(p_place_id, p_limit)
 // Allowed values (keeps DB enums/checks happy even if the DOM ever gets weird)
 const ALLOWED_POST_TYPES = new Set(["general", "advice", "event", "alert"]);
 const ALLOWED_TOPICS = new Set([
@@ -14,11 +15,47 @@ const ALLOWED_TOPICS = new Set([
   "legends",
 ]);
 
+const USE_LOC_KEY = "wtd_use_location_v1";
+const useLocToggle = document.getElementById("useLocationToggle");
+const locHint = document.getElementById("locHint");
+
 const params = new URLSearchParams(window.location.search);
 const placeId = params.get("id");
 
 const placeNameEl = document.getElementById("placeName");
 const postsEl = document.getElementById("posts");
+
+function buildMapsUrl(p) {
+  const lat = p?.lat;
+  const lng = p?.lng;
+
+  const label = (p?.venue_name || p?.title || "Location").trim();
+  const addr = (p?.address_text || "").trim();
+
+  // If we have coordinates, use them (best)
+  if (lat != null && lng != null) {
+    const q = encodeURIComponent(`${lat},${lng} (${label})`);
+    // This opens the default map app on mobile; in desktop it opens browser maps
+    return `https://www.google.com/maps/search/?api=1&query=${q}`;
+  }
+
+  // Fallback to address text if no coords
+  if (addr) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+  }
+
+  return null;
+}
+
+// Map refresh helper (only renders if open/visible)
+function maybeRenderMap() {
+  const mapEl = document.getElementById("map");
+  if (!mapEl) return;
+  const collapse = mapEl.closest(".collapse");
+  if (collapse && !collapse.classList.contains("show")) return;
+  if (mapEl.offsetParent === null) return;
+  renderMapFromPosts();
+}
 
 function formatCount(n) {
   if (!n || n < 1) return "0";
@@ -39,6 +76,37 @@ function toDatetimeLocalFromIso(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
     d.getHours(),
   )}:${pad(d.getMinutes())}`;
+}
+
+// ----------------------------------------------------------
+// MAP: "last 5 positive reactions" source
+// ----------------------------------------------------------
+async function fetchRecentPositivePosts(limit = 5) {
+  if (!currentSession) return null;
+  if (!placeId) return null;
+
+  const { data, error } = await supabase.rpc("wtd_recent_positive_posts", {
+    p_place_id: placeId,
+    p_limit: limit,
+  });
+
+  if (error) {
+    console.log("wtd_recent_positive_posts error:", error);
+    return null;
+  }
+
+  // Normalize into the shape the map expects (p.lat/p.lng etc)
+  return (data || [])
+    .filter((x) => x?.lat != null && x?.lng != null)
+    .map((x) => ({
+      id: x.id,
+      title: x.title,
+      venue_name: x.venue_name,
+      address_text: x.address_text,
+      lat: x.lat,
+      lng: x.lng,
+      reacted_at: x.reacted_at,
+    }));
 }
 
 // One-time click handler for Edit/Delete/Save/Cancel inside posts list
@@ -353,6 +421,34 @@ if (createToggleBtn && createCollapse && window.bootstrap?.Collapse) {
   );
 }
 
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371e3; // meters
+  const toRad = (x) => (x * Math.PI) / 180;
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const dφ = toRad(lat2 - lat1);
+  const dλ = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
+
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function attachDistances(posts, coords) {
+  if (!coords) return posts;
+  return (posts || []).map((p) => {
+    if (p?.lat == null || p?.lng == null) return p;
+    const m = haversineMeters(
+      coords.lat,
+      coords.lng,
+      Number(p.lat),
+      Number(p.lng),
+    );
+    return { ...p, distance_m: Math.round(m) };
+  });
+}
+
 // Persist GH distance band
 const GH_DISTANCE_KEY = "wtd_gh_distance_pref";
 
@@ -382,6 +478,27 @@ if (ghDistance) {
     await loadPosts();
     if (ghMode) await showNextSuggestion();
   });
+}
+
+function setLocHint(msg = "") {
+  if (locHint) locHint.textContent = msg;
+}
+
+function clearGeoCache() {
+  try {
+    localStorage.removeItem(GEO_CACHE_KEY);
+  } catch {}
+}
+
+async function canUseGeoNow() {
+  // Optional: permissions API (not supported everywhere)
+  try {
+    if (!navigator.permissions) return null;
+    const p = await navigator.permissions.query({ name: "geolocation" });
+    return p.state; // "granted" | "prompt" | "denied"
+  } catch {
+    return null;
+  }
 }
 
 (async function wireVenueAutocomplete() {
@@ -794,11 +911,69 @@ async function showNextSuggestion() {
       await loadGhTagPrefs();
       await loadPosts();
 
+      // ✅ refresh map pins after login/logout (only if map is open/visible)
+      maybeRenderMap();
+
       // If user already picked a mode, refresh the next suggestion after posts load
       if (ghMode) await showNextSuggestion();
       else renderGhEmpty();
     },
   });
+
+  // Init toggle state
+  if (useLocToggle) {
+    useLocToggle.checked = localStorage.getItem(USE_LOC_KEY) === "on";
+
+    setLocHint(useLocToggle.checked ? "Distance on." : "Distance off.");
+
+    useLocToggle.addEventListener("change", async () => {
+      if (useLocToggle.checked) {
+        // Turn ON: request coords (will prompt if needed)
+        const state = await canUseGeoNow();
+        if (state === "denied") {
+          setLocHint("Location is blocked. Enable it in site settings.");
+          useLocToggle.checked = false;
+          localStorage.setItem(USE_LOC_KEY, "off");
+          clearGeoCache();
+          // Force Any so distance UI doesn’t lie
+          if (ghDistance) ghDistance.value = "any";
+          localStorage.setItem(GH_DISTANCE_KEY, "any");
+          await loadPosts();
+          return;
+        }
+
+        const coords = await getDeviceCoords();
+        if (!coords) {
+          setLocHint("Allow location to show distance.");
+          // leave toggle on (prompt might still be pending), but fallback to Any
+          if (ghDistance) ghDistance.value = "any";
+          localStorage.setItem(GH_DISTANCE_KEY, "any");
+        } else {
+          setLocHint("Showing distance from you.");
+        }
+
+        localStorage.setItem(USE_LOC_KEY, "on");
+        await loadPosts();
+        if (ghMode) await showNextSuggestion();
+      } else {
+        // Turn OFF: stop using location
+        localStorage.setItem(USE_LOC_KEY, "off");
+        clearGeoCache();
+        setLocHint("Distance off.");
+
+        // Hide distance by removing computed values
+        lastPosts = (lastPosts || []).map((p) => ({ ...p, distance_m: null }));
+        renderPosts(lastPosts);
+
+        // Force Any so we don’t call wtd_posts_near
+        if (ghDistance) ghDistance.value = "any";
+        localStorage.setItem(GH_DISTANCE_KEY, "any");
+
+        await loadPosts();
+        if (ghMode) await showNextSuggestion();
+      }
+    });
+  }
 
   // GH should look "ready" on first paint even before user taps a mode
   renderGhEmpty();
@@ -1039,8 +1214,10 @@ async function refreshFollowUI() {
 async function loadPosts() {
   postsEl.innerHTML = `<div class="text-muted">Loading…</div>`;
 
+  const useLoc = localStorage.getItem(USE_LOC_KEY) !== "off";
+
   const band = ghDistance?.value || "near";
-  const radius = radiusMetersForBand(band);
+  const radius = useLoc ? radiusMetersForBand(band) : null;
 
   let data, error;
 
@@ -1109,6 +1286,13 @@ async function loadPosts() {
 
   lastPosts = data || [];
 
+  if (useLoc) {
+    const coords = await getDeviceCoords();
+    lastPosts = attachDistances(lastPosts, coords);
+  } else {
+    lastPosts = (lastPosts || []).map((p) => ({ ...p, distance_m: null }));
+  }
+
   // Hide expired events (works for both normal list + nearby RPC)
   const now = new Date();
   lastPosts = lastPosts.filter((p) => {
@@ -1126,8 +1310,22 @@ async function loadPosts() {
   });
 
   renderPosts(lastPosts);
-  // If your place.html has a map panel, refresh pins after posts load
-  renderMapFromPosts(); // don't block posts on maps
+  // Map should NOT re-render unless the map panel is actually open/visible.
+  maybeRenderMap();
+}
+
+function maybeRenderMap() {
+  const mapEl = document.getElementById("map");
+  if (!mapEl) return;
+
+  // If map is inside a Bootstrap collapse, only render when it's open.
+  const collapse = mapEl.closest(".collapse");
+  if (collapse && !collapse.classList.contains("show")) return;
+
+  // If map is not visible in layout (display:none), skip.
+  if (mapEl.offsetParent === null) return;
+
+  renderMapFromPosts(); // render when opened
 }
 
 // Map renderer (global so it persists and can be called after every loadPosts)
@@ -1142,12 +1340,19 @@ async function renderMapFromPosts() {
     return;
   }
 
-  const pts = (lastPosts || [])
+  // ✅ Prefer: last 5 posts you reacted positively to (Yes/Upvote/Like)
+  // If not logged in or none found, fallback to lastPosts (normal behavior).
+  const preferred = await fetchRecentPositivePosts(5);
+  const source = preferred && preferred.length ? preferred : [];
+
+  const pts = source
     .filter((p) => p.lat != null && p.lng != null)
     .map((p) => ({ p, pos: { lat: Number(p.lat), lng: Number(p.lng) } }));
 
   if (!pts.length) {
-    mapEl.innerHTML = `<div class="text-muted small">No mapped posts yet.</div>`;
+    mapEl.innerHTML = currentSession
+      ? `<div class="text-muted small">No positive-reaction locations yet. Like (👍) a few posts and reopen the map.</div>`
+      : `<div class="text-muted small">Log in and react 👍 to show your last 5 liked locations here.</div>`;
     return;
   }
 
@@ -1167,8 +1372,12 @@ async function renderMapFromPosts() {
 
   const bounds = new google.maps.LatLngBounds();
 
-  pts.forEach(({ p, pos }) => {
-    const m = new google.maps.Marker({ position: pos, map });
+  pts.forEach(({ p, pos }, idx) => {
+    const m = new google.maps.Marker({
+      position: pos,
+      map,
+      label: String(idx + 1),
+    });
     m.addListener("click", () => {
       const txt = `${p.title || ""}\n${p.venue_name || ""}\n${p.address_text || ""}`;
       alert(txt.trim());
@@ -1179,6 +1388,15 @@ async function renderMapFromPosts() {
 
   map.fitBounds(bounds);
 }
+
+// OPTIONAL (recommended):
+// If your map is inside a Bootstrap collapse, render only when opened.
+// Add id="mapCollapse" to the collapse div in place.html if you want this.
+document
+  .getElementById("mapCollapse")
+  ?.addEventListener("shown.bs.collapse", () => {
+    renderMapFromPosts();
+  });
 
 function renderPosts(posts) {
   const q = (currentSearch || "").trim().toLowerCase();
@@ -1262,13 +1480,19 @@ function renderPosts(posts) {
   <button class="btn btn-sm wtd-iconbtn" onclick="vote('${p.id}', -1)">👎</button>
 
   ${
+    p.lat != null && p.lng != null
+      ? `<a class="btn btn-sm wtd-actionbtn" href="${buildMapsUrl(p)}" target="_blank" rel="noopener">Map it</a>`
+      : ``
+  }
+
+  ${
     isOwner(p)
       ? `
-    <div class="ms-auto d-flex gap-2">
-      <button class="btn btn-sm wtd-actionbtn" data-action="edit" data-id="${p.id}">Edit</button>
-      <button class="btn btn-sm wtd-dangerbtn" data-action="delete" data-id="${p.id}">Delete</button>
-     </div>
-  `
+        <div class="ms-auto d-flex gap-2">
+          <button class="btn btn-sm wtd-actionbtn" data-action="edit" data-id="${p.id}">Edit</button>
+          <button class="btn btn-sm wtd-dangerbtn" data-action="delete" data-id="${p.id}">Delete</button>
+        </div>
+      `
       : `<div class="ms-auto"></div>`
   }
 </div>

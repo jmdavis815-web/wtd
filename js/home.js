@@ -262,8 +262,15 @@
   showHint("Start typing to see matching places.");
 })();
 
-// ----:contentReference[oaicite:9]{index=9}world city picker ----
+// World city picker (Google Places Autocomplete) — FIXED SCOPE
 (async function wireGoogleCityAutocomplete() {
+  const searchEl = document.getElementById("placeSearch");
+  const hintEl = document.getElementById("placesHint");
+
+  const showHint = (text) => {
+    if (hintEl) hintEl.textContent = text;
+  };
+
   if (!searchEl) return;
 
   try {
@@ -281,7 +288,6 @@
       const lat = place.geometry.location.lat();
       const lng = place.geometry.location.lng();
 
-      // Pull admin1/state + country code from address components
       let admin1 = null;
       let countryCode = null;
 
@@ -291,8 +297,6 @@
         if (c.types?.includes("country")) countryCode = c.short_name;
       }
 
-      // Upsert into your DB:
-      // ✅ Best: create an RPC that upserts by (provider, provider_place_id)
       const { data, error } = await supabase.rpc("wtd_upsert_place_google", {
         p_provider_place_id: place.place_id,
         p_name: place.name,
@@ -308,7 +312,6 @@
         return;
       }
 
-      // RPC returns the row (or at least its id)
       const newId = data?.id || data;
       if (!newId) return;
 

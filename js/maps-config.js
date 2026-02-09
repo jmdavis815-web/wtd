@@ -1,2 +1,2 @@
 // js/maps-config.js
-window.WTD_MAPS_KEY = "YOUR_GOOGLE_MAPS_KEY";
+window.WTD_MAPS_KEY = "AIzaSyDSmEv6H5KkpVQyiol6sOD12r0OXPNmMeg";

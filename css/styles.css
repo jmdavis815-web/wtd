@@ -412,3 +412,42 @@ section .mood-btn {
 .wtd-empty {
   border-radius: 16px;
 }
+
+/* =========================
+   Footer (WTD) — dark glass
+   ========================= */
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+.wtd-footer {
+  flex-shrink: 0;
+  margin-top: 14px;
+
+  /* match app-topbar / sheet vibe */
+  background: rgba(10, 12, 18, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.wtd-footer-text {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(230, 232, 238, 0.6);
+}
