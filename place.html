@@ -156,14 +156,19 @@
           <div id="ghSuggestionWrap" class="mt-4 d-none">
             <div class="gh-surface p-3">
               <div
-                class="d-flex justify-content-between align-items-start gap-3"
+                class="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-2"
               >
-                <div>
+                <div class="flex-grow-1">
                   <div id="ghWhy" class="text-muted small mb-1"></div>
                   <div id="ghTitle" class="h5 mb-1"></div>
                   <div id="ghBody" class="text-muted"></div>
                 </div>
-                <div class="text-muted small text-nowrap" id="ghMeta"></div>
+
+                <div
+                  id="ghMeta"
+                  class="text-muted small w-100 w-sm-auto text-sm-end"
+                  style="white-space: normal"
+                ></div>
               </div>
 
               <div class="mt-3 d-flex flex-wrap gap-2">

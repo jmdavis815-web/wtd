@@ -451,3 +451,16 @@ main {
   text-transform: uppercase;
   color: rgba(230, 232, 238, 0.6);
 }
+
+@media (max-width: 575.98px) {
+  #ghMindCard {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* if the inner collapse/body is narrow */
+  #ghMindCard .card-body,
+  #ghMindCard .sheet {
+    width: 100%;
+  }
+}
