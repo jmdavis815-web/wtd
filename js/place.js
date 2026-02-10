@@ -22,6 +22,26 @@ const ALLOWED_TOPICS = new Set([
   "legends",
 ]);
 
+// ----------------------------------------------------------
+// TOPIC → IMAGE (pure UI mapping; no DB changes needed)
+// Put your transparent PNGs in /img/topics/
+// ----------------------------------------------------------
+const TOPIC_IMAGES = {
+  everyday: "/img/topics/everyday.png",
+  food_drink: "food_drink.png",
+  outdoors: "/img/topics/outdoors.png",
+  history: "/img/topics/history.png",
+  events: "/img/topics/entertainment.png",
+  attractions: "/img/topics/attractions.png",
+  nightlife: "/img/topics/nightlife.png",
+  legends: "/img/topics/legends.png",
+};
+
+function topicImage(topic) {
+  const t = String(topic || "everyday").toLowerCase();
+  return TOPIC_IMAGES[t] || "/img/topics/default.png";
+}
+
 const USE_LOC_KEY = "wtd_use_location_v1";
 const useLocToggle = document.getElementById("useLocationToggle");
 const locHint = document.getElementById("locHint");
@@ -371,6 +391,7 @@ const ghTitle = document.getElementById("ghTitle");
 const ghBody = document.getElementById("ghBody");
 const ghMeta = document.getElementById("ghMeta");
 const ghMsg = document.getElementById("ghMsg");
+const ghTopicImg = document.getElementById("ghTopicImg");
 
 const ghYes = document.getElementById("ghYes");
 const ghNo = document.getElementById("ghNo");
@@ -700,6 +721,7 @@ function renderGhEmpty() {
   if (ghMsg) ghMsg.textContent = "";
   if (ghLinks) ghLinks.innerHTML = "";
   if (ghHint) ghHint.textContent = "Pick a vibe to get a suggestion.";
+  if (ghTopicImg) ghTopicImg.classList.add("d-none");
   disableGhActions(true);
   ghCurrent = null;
 }
@@ -989,6 +1011,12 @@ async function showNextSuggestion() {
   ghWhy.textContent = `Because you said you’re ${modeLabel(ghMode)} · ${timeBucket()}`;
   ghTitle.textContent = next.title || "(Untitled)";
   ghBody.textContent = next.body || "";
+
+  // Topic image for GH suggestion
+  if (ghTopicImg) {
+    ghTopicImg.src = topicImage(next.topic);
+    ghTopicImg.classList.remove("d-none");
+  }
 
   // Optional: show distance in the GH widget if present
   const distText =
@@ -1610,6 +1638,12 @@ function renderPosts(posts) {
 
     div.innerHTML = `
       <div class="card-body post-body">
+              <img
+          src="${topicImage(p.topic)}"
+          class="post-topic-img mb-2"
+          alt=""
+          loading="lazy"
+        />
         <div class="d-flex justify-content-between align-items-start gap-2">
           <div>
             <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">

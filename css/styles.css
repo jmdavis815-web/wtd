@@ -1,3 +1,20 @@
+/* ----------------------------------------------------------
+   Topic images (posts + GH suggestions)
+---------------------------------------------------------- */
+.post-topic-img {
+  width: 150px;
+  height: 150px;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+.gh-topic-img {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
 :root {
   --gh-accent: 99, 102, 241; /* indigo */
   --gh-accent2: 16, 185, 129; /* emerald */
