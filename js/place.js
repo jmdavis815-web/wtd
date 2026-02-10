@@ -27,14 +27,14 @@ const ALLOWED_TOPICS = new Set([
 // Put your transparent PNGs in /img/topics/
 // ----------------------------------------------------------
 const TOPIC_IMAGES = {
-  everyday: "/img/topics/everyday.png",
+  everyday: "everyday.png",
   food_drink: "food_drink.png",
-  outdoors: "/img/topics/outdoors.png",
-  history: "/img/topics/history.png",
+  outdoors: "outdoors.png",
+  history: "history.png",
   events: "entertainment.png",
-  attractions: "/img/topics/attractions.png",
-  nightlife: "/img/topics/nightlife.png",
-  legends: "/img/topics/legends.png",
+  attractions: "attractions.png",
+  nightlife: "nightlife.png",
+  legends: "legends.png",
 };
 
 function topicImage(topic) {
