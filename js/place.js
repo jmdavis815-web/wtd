@@ -1640,7 +1640,7 @@ function renderPosts(posts) {
       <div class="card-body post-body">
               <img
           src="${topicImage(p.topic)}"
-          class="post-topic-img mb-2"
+          class="post-topic-img"
           alt=""
           loading="lazy"
         />
