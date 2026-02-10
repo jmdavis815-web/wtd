@@ -386,9 +386,14 @@ const ghMinBtn = document.getElementById("ghMinBtn");
 
 if (ghCollapseEl && ghMinBtn) {
   const setGhBtn = (isOpen) => {
-    ghMinBtn.textContent = isOpen ? "Minimize" : "Expand";
-    ghMinBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    const icon = ghMinBtn.querySelector("i");
+    if (!icon) return;
+
+    icon.classList.toggle("bi-chevron-up", isOpen);
+    icon.classList.toggle("bi-chevron-down", !isOpen);
+
     ghMinBtn.title = isOpen ? "Minimize GH-Mind" : "Expand GH-Mind";
+    ghMinBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
   };
 
   // Initial state
@@ -1481,7 +1486,7 @@ async function renderMapFromPosts() {
   // ✅ Prefer: last 5 posts you reacted positively to (Yes/Upvote/Like)
   // If not logged in or none found, fallback to lastPosts (normal behavior).
   const preferred = await fetchRecentPositivePosts(5);
-  const source = preferred && preferred.length ? preferred : (lastPosts || []);
+  const source = preferred && preferred.length ? preferred : lastPosts || [];
 
   const pts = source
     .filter((p) => p.lat != null && p.lng != null)
