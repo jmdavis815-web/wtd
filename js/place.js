@@ -31,7 +31,7 @@ const TOPIC_IMAGES = {
   food_drink: "food_drink.png",
   outdoors: "/img/topics/outdoors.png",
   history: "/img/topics/history.png",
-  events: "/img/topics/entertainment.png",
+  events: "entertainment.png",
   attractions: "/img/topics/attractions.png",
   nightlife: "/img/topics/nightlife.png",
   legends: "/img/topics/legends.png",
