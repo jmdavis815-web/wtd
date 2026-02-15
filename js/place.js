@@ -29,14 +29,22 @@ const ALLOWED_TOPICS = new Set([
 // ----------------------------------------------------------
 // Put your transparent PNGs in /img/topics/
 const TOPIC_IMAGES = {
-  everyday: "/img/topics/everyday.png",
-  food_drink: "/img/topics/food_drink.png",
-  outdoors: "/img/topics/outdoors.png",
-  history: "/img/topics/history.png",
-  events: "/img/topics/entertainment.png",
-  attractions: "/img/topics/attractions.png",
-  nightlife: "/img/topics/nightlife.png",
-  legends: "/img/topics/legends.png",
+  everyday:
+    "https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/public/wtd/everyday.png",
+  food_drink:
+    "https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/public/wtd/food_drink.png",
+  outdoors:
+    "https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/public/wtd/outdoors.png",
+  history:
+    "https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/public/wtd/history.png",
+  events:
+    "https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/public/wtd/entertainment.png",
+  attractions:
+    "https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/public/wtd/attractions.png",
+  nightlife:
+    "https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/public/wtd/nightlife.png",
+  legends:
+    "https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/public/wtd/legends.png",
 };
 
 function topicImage(topic) {
