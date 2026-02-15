@@ -1174,7 +1174,12 @@ async function showNextSuggestion() {
       ? ` · Tags: ${next.tags.join(", ")}`
       : "";
   ghMeta.innerHTML = `
-  <div class=" d-flex flex-column justify-content-between align-items-end" >
+  <div class=" d-flex flex-row justify-content-between align-items-center" >
+
+  <div class="d-flex align-items-center gap-1 post-score mt-1 heart">
+      <i class="bi bi-heart-fill text-danger"></i>
+      <span class="badge bg-light text-dark border">${next.score ?? 0}</span>
+    </div>
     <button
       class="btn btn-sm btn-link text-muted p-0 sug"
       type="button"
@@ -1186,10 +1191,7 @@ async function showNextSuggestion() {
       <i class="bi bi-three-dots-vertical"></i>
     </button>
 
-    <div class="d-flex align-items-center gap-1 post-score mt-1 heart">
-      <i class="bi bi-heart-fill text-danger"></i>
-      <span class="badge bg-light text-dark border">${next.score ?? 0}</span>
-    </div>
+    
   </div>
 
   ${distPart ? `<span class="text-muted small">${distPart}</span>` : ""}
