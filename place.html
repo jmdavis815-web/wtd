@@ -104,16 +104,20 @@
 
         <!-- Suggestion surface -->
         <div id="ghSuggestionWrap" class="mt-4 d-none">
-          <div class="gh-surface p-3 p-md-4">
-            <!-- Topic image (set by JS based on suggestion.topic) -->
-            <img id="ghTopicImg" class="gh-topic-img d-none" alt="" />
-            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-2">
+          <div class="gh-surface p-3 p-md-4 text-end">
+            <div class="d-flex flex-row justify-content-between">
+
+              <!-- Topic image (set by JS based on suggestion.topic) -->
+              <img id="ghTopicImg" class="text-start gh-topic-img d-none" alt="" />
+              <div id="ghMeta" class="text-muted small text-sm-end" style="white-space: normal"></div>
+            </div>
+            <div class="text-start d-flex flex-column flex-sm-row justify-content-between align-items-start gap-2">
               <div class="flex-grow-1">
                 <div id="ghWhy" class="text-muted small mb-1"></div>
                 <div id="ghTitle" class="h5 mb-1"></div>
                 <div id="ghBody" class="text-muted"></div>
               </div>
-              <div id="ghMeta" class="text-muted small text-sm-end" style="white-space: normal"></div>
+
             </div>
 
             <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
@@ -282,7 +286,7 @@
 
               <!-- NEW: optional image upload -->
               <div class="col-12">
-                <input + id="postImage" + type="file" + accept="image/*" + class="form-control" + />
+                <input id="postImage" type="file" accept="image/*" class="form-control" />
                 <div class="form-text">
                   Optional. If added, this image shows on the post instead of
                   the default topic icon.
@@ -332,15 +336,52 @@
       </div>
     </section>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/auth-ui.js"></script>
-    <script src="js/maps-config.js"></script>
-    <script src="js/maps-loader.js"></script>
-    <script src="js/place.js?v=2025-02-15"></script>
   </main>
+
+  <div class="modal fade" id="postActionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Post options</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="d-grid gap-2">
+            <!-- owner-only -->
+            <button class="btn btn-outline-primary d-none" data-pa="edit">
+              <i class="bi bi-pencil"></i> Edit
+            </button>
+            <button class="btn btn-outline-danger d-none" data-pa="delete">
+              <i class="bi bi-trash"></i> Delete
+            </button>
+
+            <hr class="my-2" />
+
+            <!-- always available -->
+            <button class="btn btn-outline-secondary" data-pa="hide">
+              <i class="bi bi-eye-slash"></i> Hide
+            </button>
+            <button class="btn btn-outline-dark" data-pa="block">
+              <i class="bi bi-slash-circle"></i> Block user
+            </button>
+          </div>
+
+          <div class="text-muted small mt-3" id="postActionsMeta"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth-ui.js"></script>
+  <script src="js/maps-config.js"></script>
+  <script src="js/maps-loader.js"></script>
+  <script src="js/place.js?v=2026-02-15"></script>
+
 </body>
 
 </html>

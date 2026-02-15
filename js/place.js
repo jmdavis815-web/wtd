@@ -1,4 +1,5 @@
 // js/place.js
+// Post "..." actions modal + owner-only edit/delete + local hide/block
 // NOTE: post.tags are auto-generated in DB via trigger (see SQL)
 // NOTE: post creation must use RPC wtd_create_post (direct INSERT on posts is revoked)
 // NOTE: map can optionally show last N "positive reactions" via RPC wtd_recent_positive_posts(p_place_id, p_limit)
@@ -62,6 +63,48 @@ const placeId = params.get("id");
 const ghLinks = document.getElementById("ghLinks");
 const placeNameEl = document.getElementById("placeName");
 const postsEl = document.getElementById("posts");
+
+const postActionsModalEl = document.getElementById("postActionsModal");
+const postActionsMeta = document.getElementById("postActionsMeta");
+const paEdit = postActionsModalEl?.querySelector('[data-pa="edit"]');
+const paDelete = postActionsModalEl?.querySelector('[data-pa="delete"]');
+const paHide = postActionsModalEl?.querySelector('[data-pa="hide"]');
+const paBlock = postActionsModalEl?.querySelector('[data-pa="block"]');
+
+let paContext = null; // { source: "post"|"gh", post }
+const hiddenPostsKey = "wtd_hidden_posts_v1"; // local-only v1
+const blockedUsersKey = "wtd_blocked_users_v1"; // local-only v1
+
+function readSet(key) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function writeSet(key, set) {
+  try {
+    localStorage.setItem(key, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+function openPostActions(post, source = "post") {
+  if (!postActionsModalEl || !window.bootstrap?.Modal) return;
+
+  paContext = { source, post };
+
+  const owner = isOwner(post);
+  paEdit?.classList.toggle("d-none", !owner);
+  paDelete?.classList.toggle("d-none", !owner);
+
+  if (postActionsMeta) {
+    const who = post.author_id ? `Author: ${post.author_id}` : "";
+    postActionsMeta.textContent = `${post.title || "(Untitled)"}${who ? " · " + who : ""}`;
+  }
+
+  const modal = window.bootstrap.Modal.getOrCreateInstance(postActionsModalEl);
+  modal.show();
+}
 
 function buildMapsUrl(p) {
   const lat = p?.lat;
@@ -137,6 +180,92 @@ async function fetchRecentPositivePosts(limit = 5) {
     }));
 }
 
+paEdit?.addEventListener("click", () => {
+  const post = paContext?.post;
+  if (!post) return;
+  // reuse your existing inline editor flow by simulating edit
+  // simplest: just call renderPosts and then trigger edit via query
+  // better: factor edit flow into a function. For now:
+  const inst = postActionsModalEl
+    ? window.bootstrap?.Modal?.getInstance(postActionsModalEl)
+    : null;
+  inst?.hide();
+  // find the post card and click its edit button if present
+  document
+    .querySelector(`button[data-action="edit"][data-id="${post.id}"]`)
+    ?.click();
+});
+
+paDelete?.addEventListener("click", async () => {
+  const post = paContext?.post;
+  if (!post || !currentSession) return;
+  if (!confirm("Delete this post?")) return;
+
+  const { error } = await supabase
+    .from("posts")
+    .delete()
+    .eq("id", post.id)
+    .eq("author_id", currentSession.user.id);
+
+  if (error) return alert(error.message);
+
+  const inst = postActionsModalEl
+    ? window.bootstrap?.Modal?.getInstance(postActionsModalEl)
+    : null;
+  inst?.hide();
+  await loadPosts();
+  if (ghMode) await showNextSuggestion();
+});
+
+paHide?.addEventListener("click", async () => {
+  const post = paContext?.post;
+  if (!post) return;
+  const hidden = readSet(hiddenPostsKey);
+  hidden.add(post.id);
+  writeSet(hiddenPostsKey, hidden);
+
+  const inst = postActionsModalEl
+    ? window.bootstrap?.Modal?.getInstance(postActionsModalEl)
+    : null;
+  inst?.hide();
+  await loadPosts();
+  if (ghMode) await showNextSuggestion();
+});
+
+paBlock?.addEventListener("click", async () => {
+  const post = paContext?.post;
+  if (!post?.author_id) return;
+  const blocked = readSet(blockedUsersKey);
+  blocked.add(post.author_id);
+  writeSet(blockedUsersKey, blocked);
+
+  const inst = postActionsModalEl
+    ? window.bootstrap?.Modal?.getInstance(postActionsModalEl)
+    : null;
+  inst?.hide();
+  await loadPosts();
+  if (ghMode) await showNextSuggestion();
+});
+
+// GH "..." options: delegate from document so it can't TDZ-crash if ghCard is declared later
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("#ghMindCard button[data-action='more']");
+  if (!btn) return;
+
+  const id = btn.dataset.id;
+  if (!id) return;
+
+  // best source is current suggestion, but fallback to lookup
+  const post =
+    ghCurrent && ghCurrent.id === id
+      ? ghCurrent
+      : (lastPosts || []).find((p) => p.id === id);
+
+  if (!post) return;
+
+  openPostActions(post, "gh");
+});
+
 // One-time click handler for Edit/Delete/Save/Cancel inside posts list
 postsEl?.addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-action]");
@@ -149,14 +278,21 @@ postsEl?.addEventListener("click", async (e) => {
   const post = (lastPosts || []).find((p) => p.id === postId);
   if (!post) return;
 
+  // allow opening modal without login (hide/block can still be local-only)
+  if (action === "more") {
+    openPostActions(post, "post");
+    return;
+  }
+
+  // everything else requires login
   if (!currentSession) {
     alert("Please log in first.");
     window.location.href = "login.html";
     return;
   }
 
-  // Extra guard: even if UI glitches, don’t allow non-owners to attempt.
-  if (!isOwner(post)) {
+  // ownership guard for owner-only actions
+  if (["edit", "delete", "save", "cancel"].includes(action) && !isOwner(post)) {
     alert("You can only edit or delete your own posts.");
     return;
   }
@@ -1038,10 +1174,24 @@ async function showNextSuggestion() {
       ? ` · Tags: ${next.tags.join(", ")}`
       : "";
   ghMeta.innerHTML = `
-  <span class="d-inline-flex align-items-center gap-1">
-    <i class="bi bi-heart-fill text-danger"></i>
-    <span class="badge bg-light text-dark border">${next.score ?? 0}</span>
-  </span>
+  <div class=" d-flex flex-column justify-content-between align-items-end" >
+    <button
+      class="btn btn-sm btn-link text-muted p-0 sug"
+      type="button"
+      data-action="more"
+      data-id="${next.id}"
+      aria-label="Post options"
+      title="Options"
+    >
+      <i class="bi bi-three-dots-vertical"></i>
+    </button>
+
+    <div class="d-flex align-items-center gap-1 post-score mt-1 heart">
+      <i class="bi bi-heart-fill text-danger"></i>
+      <span class="badge bg-light text-dark border">${next.score ?? 0}</span>
+    </div>
+  </div>
+
   ${distPart ? `<span class="text-muted small">${distPart}</span>` : ""}
   ${tagText ? `<span class="text-muted small">${tagText}</span>` : ""}
 `;
@@ -1521,6 +1671,15 @@ async function loadPosts() {
 
   lastPosts = data || [];
 
+  const hidden = readSet(hiddenPostsKey);
+  const blocked = readSet(blockedUsersKey);
+
+  lastPosts = (lastPosts || []).filter((p) => {
+    if (hidden.has(p.id)) return false;
+    if (p.author_id && blocked.has(p.author_id)) return false;
+    return true;
+  });
+
   if (useLoc) {
     const coords = await getDeviceCoords();
     lastPosts = attachDistances(lastPosts, coords);
@@ -1701,13 +1860,30 @@ function renderPosts(posts) {
       : "";
 
     div.innerHTML = `
-      <div class="card-body post-body">
-        <img
-          src="${escapeHtml(p.image_url || topicImage(p.topic))}"
-          class="post-topic-img"
-          alt=""
-          loading="lazy"
-        />
+  <div class="card-body post-body position-relative">
+    ${
+      isOwner(p)
+        ? `
+          <button
+            class="btn btn-sm btn-link text-muted p-0 post-more"
+            type="button"
+            data-action="more"
+            data-id="${p.id}"
+            aria-label="Post options"
+            title="Options"
+          >
+            <i class="bi bi-three-dots-vertical"></i>
+          </button>
+        `
+        : ``
+    }
+
+    <img
+      src="${escapeHtml(p.image_url || topicImage(p.topic))}"
+      class="post-topic-img"
+      alt=""
+      loading="lazy"
+    />
         <div class="d-flex justify-content-between align-items-start gap-2">
           <div>
             <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
@@ -1718,10 +1894,15 @@ function renderPosts(posts) {
             ${whenHtml}
             ${distHtml}
           </div>
-          <div class="d-flex align-items-center gap-1 post-score">
-            <i class="bi bi-heart-fill text-danger"></i>
-            <span class="badge bg-light text-dark border">${p.score ?? 0}</span>
-          </div>
+          <div class="position-relative">
+  
+
+  <div class="d-flex align-items-center gap-1 post-score mt-1">
+    <i class="bi bi-heart-fill text-danger"></i>
+    <span class="badge bg-light text-dark border">${p.score ?? 0}</span>
+  </div>
+</div>
+
         </div>
 
         <div class="post-text mb-3">${escapeHtml(p.body || "")}</div>
@@ -1736,16 +1917,7 @@ function renderPosts(posts) {
       : ``
   }
 
-  ${
-    isOwner(p)
-      ? `
-        <div class="ms-auto d-flex gap-2">
-          <button class="btn btn-sm wtd-actionbtn" data-action="edit" data-id="${p.id}">Edit</button>
-          <button class="btn btn-sm wtd-dangerbtn" data-action="delete" data-id="${p.id}">Delete</button>
-        </div>
-      `
-      : `<div class="ms-auto"></div>`
-  }
+  <div class="ms-auto"></div
 </div>
 
     `;

@@ -299,6 +299,18 @@ section .mood-btn {
 /* ==========================================
    Posts — theme upgrade
    ========================================== */
+.post-more {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  line-height: 1;
+}
+
+.sug {
+  top: 0px;
+  right: 0px;
+}
+
 #ghMeta i {
   font-size: 0.9rem;
   line-height: 1;
@@ -508,4 +520,43 @@ main {
 #ghMindCard .card-body,
 #ghMindCard .sheet {
   width: 80%;
+}
+
+/* ==========================================
+   Modal (match dark theme)
+   ========================================== */
+.modal-content {
+  background: rgba(21, 26, 35, 0.96) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-soft) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7) !important;
+
+}
+
+.modal-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10) !important;
+
+}
+
+.modal-title {
+  color: rgba(255, 255, 255, 0.92) !important;
+
+}
+
+
+
+/* Make the “X” visible on dark modal */
+.modal .btn-close {
+  filter: invert(1) grayscale(100%);
+  opacity: 0.85;
+
+}
+
+
+
+/* Optional: tighten backdrop so text pops */
+.modal-backdrop.show {
+  opacity: 0.75;
+
 }
