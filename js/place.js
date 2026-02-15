@@ -2,6 +2,7 @@
 // NOTE: post.tags are auto-generated in DB via trigger (see SQL)
 // NOTE: post creation must use RPC wtd_create_post (direct INSERT on posts is revoked)
 // NOTE: map can optionally show last N "positive reactions" via RPC wtd_recent_positive_posts(p_place_id, p_limit)
+// NOTE: post images require posts.image_url + storage upload policy (see SQL diff below)
 
 // ----------------------------------------------------------
 // Browse Posts paging (UI-only)
@@ -1014,7 +1015,7 @@ async function showNextSuggestion() {
 
   // Topic image for GH suggestion
   if (ghTopicImg) {
-    ghTopicImg.src = topicImage(next.topic);
+    ghTopicImg.src = next.image_url || topicImage(next.topic);
     ghTopicImg.classList.remove("d-none");
   }
 
@@ -1276,6 +1277,48 @@ document.addEventListener("visibilitychange", async () => {
       return;
     }
 
+    // -------------------------
+    // NEW: optional image upload
+    // -------------------------
+    let image_url = null;
+    const fileInput = document.getElementById("postImage");
+    const file = fileInput?.files?.[0] || null;
+
+    if (file) {
+      // light guardrails (keeps storage sane)
+      const MAX_BYTES = 5 * 1024 * 1024; // 5MB
+      if (file.size > MAX_BYTES) {
+        postMsg.textContent = "Image too large (max 5MB).";
+        return;
+      }
+
+      // Unique path
+      const safeName = String(file.name || "upload")
+        .replaceAll(" ", "_")
+        .replace(/[^\w.\-]/g, "");
+      const path = `posts/${crypto.randomUUID()}_${safeName}`;
+
+      postMsg.textContent = "Uploading image…";
+
+      const { error: uploadError } = await supabase.storage
+        .from("wtd")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) {
+        postMsg.textContent = uploadError.message || "Image upload failed.";
+        return;
+      }
+
+      // Requires the bucket (or at least this folder) to be publicly readable
+      // so logged-out users can see the image.
+      const { data: pub } = supabase.storage.from("wtd").getPublicUrl(path);
+      image_url = pub?.publicUrl || null;
+    }
+
     const { data, error } = await supabase.rpc("wtd_create_post", {
       p_place_id: placeId,
       p_type: type,
@@ -1289,6 +1332,8 @@ document.addEventListener("visibilitychange", async () => {
       p_address_text: selectedVenue.address_text,
       p_lat: selectedVenue.lat,
       p_lng: selectedVenue.lng,
+      // NEW
+      p_image_url: image_url,
     });
 
     if (error) {
@@ -1298,6 +1343,9 @@ document.addEventListener("visibilitychange", async () => {
 
     selectedVenue = null;
     if (venueSearchEl) venueSearchEl.value = "";
+
+    // Clear image input
+    if (fileInput) fileInput.value = "";
 
     // Reset form state
     const typeEl = document.getElementById("type");
@@ -1397,7 +1445,7 @@ async function loadPosts() {
     const resp = await supabase
       .from("v_post_scores")
       .select(
-        "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng",
+        "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng, image_url",
       )
       .eq("place_id", placeId)
       .order("score", { ascending: false });
@@ -1413,7 +1461,7 @@ async function loadPosts() {
       const resp = await supabase
         .from("v_post_scores")
         .select(
-          "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng",
+          "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng, image_url",
         )
         .eq("place_id", placeId)
         .order("score", { ascending: false });
@@ -1638,8 +1686,8 @@ function renderPosts(posts) {
 
     div.innerHTML = `
       <div class="card-body post-body">
-              <img
-          src="${topicImage(p.topic)}"
+        <img
+          src="${escapeHtml(p.image_url || topicImage(p.topic))}"
           class="post-topic-img"
           alt=""
           loading="lazy"
@@ -1654,7 +1702,10 @@ function renderPosts(posts) {
             ${whenHtml}
             ${distHtml}
           </div>
-          <span class="post-score text-muted small">Score: ${p.score ?? 0}</span>
+          <div class="d-flex align-items-center gap-1 post-score">
+            <i class="bi bi-heart-fill text-danger"></i>
+            <span class="badge bg-light text-dark border">${p.score ?? 0}</span>
+          </div>
         </div>
 
         <div class="post-text mb-3">${escapeHtml(p.body || "")}</div>

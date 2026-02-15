@@ -16,8 +16,10 @@
 }
 
 :root {
-  --gh-accent: 99, 102, 241; /* indigo */
-  --gh-accent2: 16, 185, 129; /* emerald */
+  --gh-accent: 99, 102, 241;
+  /* indigo */
+  --gh-accent2: 16, 185, 129;
+  /* emerald */
 
   --bg-main: #0b0e14;
 
@@ -65,16 +67,12 @@ body {
   color: var(--text-main);
   background-color: var(--bg-main);
   background-image:
-    radial-gradient(
-      900px 520px at 18% 0%,
+    radial-gradient(900px 520px at 18% 0%,
       rgba(var(--gh-accent), 0.14),
-      transparent 60%
-    ),
-    radial-gradient(
-      900px 520px at 92% 12%,
+      transparent 60%),
+    radial-gradient(900px 520px at 92% 12%,
       rgba(var(--gh-accent2), 0.12),
-      transparent 58%
-    ),
+      transparent 58%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.55)),
     url("https://sxkhubtdvxswiqpplbth.supabase.co/storage/v1/object/sign/wtd/dark_texture.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9hODZjMjgyZS1iYzY3LTRiNTItYmQ1My1mZDM4ODlkMmU0Y2YiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJ3dGQvZGFya190ZXh0dXJlLnBuZyIsImlhdCI6MTc3MDYwMTE2OSwiZXhwIjoxODAyMTM3MTY5fQ.fC-iczUwV7nL_e79H8sqJy494Iip8VirpTi_EW9SJqo");
   background-repeat: no-repeat;
@@ -120,6 +118,7 @@ h5 {
 a {
   color: rgba(255, 255, 255, 0.9);
 }
+
 a:hover {
   color: rgba(255, 255, 255, 1);
 }
@@ -130,11 +129,9 @@ a:hover {
 .sheet {
   border: 1px solid var(--border-soft);
   border-radius: 16px;
-  background: linear-gradient(
-    180deg,
-    rgba(21, 26, 35, 0.86),
-    rgba(27, 34, 48, 0.82)
-  );
+  background: linear-gradient(180deg,
+      rgba(21, 26, 35, 0.86),
+      rgba(27, 34, 48, 0.82));
   box-shadow:
     0 18px 44px rgba(0, 0, 0, 0.58),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -246,11 +243,9 @@ section .mood-btn {
   margin: -1px -1px 14px -1px;
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
-  background: linear-gradient(
-    90deg,
-    rgba(var(--gh-accent), 0.75),
-    rgba(var(--gh-accent2), 0.65)
-  );
+  background: linear-gradient(90deg,
+      rgba(var(--gh-accent), 0.75),
+      rgba(var(--gh-accent2), 0.65));
   opacity: 0.85;
 }
 
@@ -265,9 +260,11 @@ section .mood-btn {
 #ghTitle {
   letter-spacing: -0.02em;
 }
+
 #ghBody {
   color: var(--text-soft) !important;
 }
+
 #ghMeta {
   color: rgba(230, 232, 238, 0.7) !important;
 }
@@ -277,10 +274,12 @@ section .mood-btn {
   0% {
     box-shadow: 0 0 0 0 rgba(var(--gh-accent), 0.25);
   }
+
   100% {
     box-shadow: 0 0 0 16px rgba(var(--gh-accent), 0);
   }
 }
+
 .gh-attention {
   animation: ghPulse 1.2s ease-out 1;
 }
@@ -300,23 +299,37 @@ section .mood-btn {
 /* ==========================================
    Posts — theme upgrade
    ========================================== */
+.post-score i {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.post-score .badge {
+  font-weight: 500;
+  padding: 0.35em 0.5em;
+}
+
 .post-card {
   overflow: hidden;
 }
+
 .post-body {
   padding: 1rem;
 }
+
 .post-title {
   font-weight: 650;
   font-size: 1.05rem;
   letter-spacing: -0.01em;
   color: rgba(255, 255, 255, 0.94);
 }
+
 .post-text {
   color: rgba(230, 232, 238, 0.86);
   line-height: 1.45;
   white-space: pre-wrap;
 }
+
 .post-score {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -344,14 +357,17 @@ section .mood-btn {
   border-color: rgba(255, 99, 99, 0.35);
   background: rgba(255, 99, 99, 0.08);
 }
+
 .wtd-type-advice {
   border-color: rgba(var(--gh-accent), 0.45);
   background: rgba(var(--gh-accent), 0.12);
 }
+
 .wtd-type-event {
   border-color: rgba(var(--gh-accent2), 0.45);
   background: rgba(var(--gh-accent2), 0.1);
 }
+
 .wtd-type-general {
   border-color: rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.03);
@@ -361,24 +377,31 @@ section .mood-btn {
 .wtd-topic-food_drink {
   border-color: rgba(255, 255, 255, 0.16);
 }
+
 .wtd-topic-outdoors {
   border-color: rgba(var(--gh-accent2), 0.28);
 }
+
 .wtd-topic-history {
   border-color: rgba(255, 255, 255, 0.16);
 }
+
 .wtd-topic-events {
   border-color: rgba(var(--gh-accent), 0.28);
 }
+
 .wtd-topic-attractions {
   border-color: rgba(255, 255, 255, 0.16);
 }
+
 .wtd-topic-nightlife {
   border-color: rgba(255, 255, 255, 0.18);
 }
+
 .wtd-topic-legends {
   border-color: rgba(255, 99, 99, 0.28);
 }
+
 .wtd-topic-everyday {
   border-color: rgba(255, 255, 255, 0.14);
 }
@@ -391,26 +414,31 @@ section .mood-btn {
   background: rgba(255, 255, 255, 0.03) !important;
   min-width: 44px;
 }
+
 .wtd-iconbtn:hover {
   background: rgba(255, 255, 255, 0.07) !important;
   border-color: rgba(255, 255, 255, 0.26) !important;
   transform: translateY(-1px);
 }
+
 .wtd-actionbtn {
   color: rgba(255, 255, 255, 0.92) !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   background: rgba(255, 255, 255, 0.03) !important;
 }
+
 .wtd-actionbtn:hover {
   background: rgba(255, 255, 255, 0.07) !important;
   border-color: rgba(255, 255, 255, 0.26) !important;
   transform: translateY(-1px);
 }
+
 .wtd-dangerbtn {
   color: rgba(255, 255, 255, 0.92) !important;
   border: 1px solid rgba(255, 99, 99, 0.3) !important;
   background: rgba(255, 99, 99, 0.08) !important;
 }
+
 .wtd-dangerbtn:hover {
   background: rgba(255, 99, 99, 0.12) !important;
   border-color: rgba(255, 99, 99, 0.44) !important;
