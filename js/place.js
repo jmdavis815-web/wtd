@@ -1028,7 +1028,14 @@ async function showNextSuggestion() {
     Array.isArray(next.tags) && next.tags.length
       ? ` · Tags: ${next.tags.join(", ")}`
       : "";
-  ghMeta.textContent = `Score: ${next.score ?? 0}${distPart}${tagText}`;
+  ghMeta.innerHTML = `
+  <span class="d-inline-flex align-items-center gap-1">
+    <i class="bi bi-heart-fill text-danger"></i>
+    <span class="badge bg-light text-dark border">${next.score ?? 0}</span>
+  </span>
+  ${distPart ? `<span class="text-muted small">${distPart}</span>` : ""}
+  ${tagText ? `<span class="text-muted small">${tagText}</span>` : ""}
+`;
 
   // ✅ Add “Map it” to suggestions (only when we have coords/address)
   if (ghLinks) {

@@ -299,6 +299,16 @@ section .mood-btn {
 /* ==========================================
    Posts — theme upgrade
    ========================================== */
+#ghMeta i {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+#ghMeta .badge {
+  font-weight: 500;
+  padding: 0.35em 0.5em;
+}
+
 .post-score i {
   font-size: 0.9rem;
   line-height: 1;
