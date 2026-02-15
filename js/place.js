@@ -27,15 +27,16 @@ const ALLOWED_TOPICS = new Set([
 // TOPIC → IMAGE (pure UI mapping; no DB changes needed)
 // Put your transparent PNGs in /img/topics/
 // ----------------------------------------------------------
+// Put your transparent PNGs in /img/topics/
 const TOPIC_IMAGES = {
-  everyday: "everyday.png",
-  food_drink: "food_drink.png",
-  outdoors: "outdoors.png",
-  history: "history.png",
-  events: "entertainment.png",
-  attractions: "attractions.png",
-  nightlife: "nightlife.png",
-  legends: "legends.png",
+  everyday: "/img/topics/everyday.png",
+  food_drink: "/img/topics/food_drink.png",
+  outdoors: "/img/topics/outdoors.png",
+  history: "/img/topics/history.png",
+  events: "/img/topics/entertainment.png",
+  attractions: "/img/topics/attractions.png",
+  nightlife: "/img/topics/nightlife.png",
+  legends: "/img/topics/legends.png",
 };
 
 function topicImage(topic) {
