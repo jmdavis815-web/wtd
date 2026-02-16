@@ -1871,22 +1871,16 @@ function renderPosts(posts) {
       loading="lazy"
     />
 
-    ${
-      isOwner(p)
-        ? `
-          <button
-            class="col-1 btn btn-sm btn-link text-muted p-0 post-more"
-            type="button"
-            data-action="more"
-            data-id="${p.id}"
-            aria-label="Post options"
-            title="Options"
-          >
-            <i class="bi bi-three-dots-vertical"></i>
-          </button>
-        `
-        : ``
-    }
+ <button
+   class="col-1 btn btn-sm btn-link text-muted p-0 post-more"
+   type="button"
+   data-action="more"
+   data-id="${p.id}"
+   aria-label="Post options"
+   title="Options"
+ >
+   <i class="bi bi-three-dots-vertical"></i>
+ </button>
       </div>
         <div class="d-flex justify-content-between align-items-start gap-2">
           <div>
