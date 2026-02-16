@@ -2,9 +2,9 @@
    Topic images (posts + GH suggestions)
 ---------------------------------------------------------- */
 .post-topic-img {
-  width: 75%;
+  width: 70%;
   max-width: 400px;
-  height: 75%;
+  height: 70%;
   max-height: 400px;
   object-fit: contain;
   opacity: 0.9;
@@ -13,9 +13,9 @@
 }
 
 .gh-topic-img {
-  width: 75%;
+  width: 70%;
   max-width: 500px;
-  height: 75%;
+  height: 70%;
   max-height: 500px;
   object-fit: contain;
   opacity: 0.9;
