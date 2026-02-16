@@ -356,7 +356,6 @@ section .mood-btn {
 }
 
 .post-card {
-  overflow: hidden;
   position: relative;
 }
 
