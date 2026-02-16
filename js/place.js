@@ -1,5 +1,145 @@
 // js/place.js
 // Post "..." actions modal + owner-only edit/delete + local hide/block
+// IMPORTANT: keep featureTagsForPost() self-contained; nothing should reference its locals at top-level.
+
+// ----------------------------------------------------------
+// Ensure a post is visible in the current Browse slice
+// so inline edit can render even when called from GH/options.
+// ----------------------------------------------------------
+function ensurePostVisibleInBrowse(postId) {
+  if (!postId) return false;
+
+  const q = (currentSearch || "").trim().toLowerCase();
+
+  const base = (lastPosts || []).filter((p) => {
+    if (currentFilter === "all") return true;
+    return (p.type || "general") === currentFilter;
+  });
+
+  const list = !q
+    ? base
+    : base.filter((p) => {
+        const title = String(p.title || "").toLowerCase();
+        const body = String(p.body || "").toLowerCase();
+        const tags = Array.isArray(p.tags)
+          ? p.tags.map((x) => String(x).toLowerCase()).join(" ")
+          : "";
+        return title.includes(q) || body.includes(q) || tags.includes(q);
+      });
+
+  const idx = list.findIndex((p) => p?.id === postId);
+  if (idx === -1) return false;
+
+  const neededOffset = Math.floor(idx / BROWSE_LIMIT) * BROWSE_LIMIT;
+  if (browseOffset !== neededOffset) browseOffset = neededOffset;
+
+  renderPosts(lastPosts);
+  return true;
+}
+
+// ----------------------------------------------------------
+// Inline edit entry point (used by modal + any future UI)
+// ----------------------------------------------------------
+function startInlineEdit(postId) {
+  if (!postId) return;
+  const post = (lastPosts || []).find((p) => p.id === postId);
+  if (!post) return;
+
+  let card = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+  if (!card) {
+    const ok = ensurePostVisibleInBrowse(postId);
+    if (ok)
+      card = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+  }
+  if (!card) return;
+
+  const isEvent = (post.type || "general").toLowerCase() === "event";
+
+  card.innerHTML = `
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div class="fw-semibold">Edit your post</div>
+        <div class="text-muted small">Score: ${post.score ?? 0}</div>
+      </div>
+
+      <div class="row g-2 mt-2">
+        <div class="col-12 col-md-3">
+          <select class="form-select form-select-sm" data-edit="type">
+            <option value="general">General</option>
+            <option value="advice">Advice</option>
+            <option value="event">Event</option>
+            <option value="alert">Alert</option>
+          </select>
+        </div>
+
+        <div class="col-12 col-md-3">
+          <select class="form-select form-select-sm" data-edit="topic">
+            <option value="everyday">Everyday</option>
+            <option value="food_drink">Food & Drink</option>
+            <option value="outdoors">Outdoors</option>
+            <option value="history">History</option>
+            <option value="events">Entertainment</option>
+            <option value="attractions">Attractions</option>
+            <option value="nightlife">Nightlife</option>
+            <option value="legends">Legends & Lore</option>
+          </select>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <input class="form-control form-control-sm" data-edit="title" maxlength="120" />
+        </div>
+
+        <div class="col-12">
+          <textarea class="form-control form-control-sm" data-edit="body" rows="3"></textarea>
+        </div>
+
+        <div class="col-12 ${isEvent ? "" : "d-none"}" data-edit="eventRow">
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              <label class="form-label mb-1 small">Starts</label>
+              <input type="datetime-local" class="form-control form-control-sm" data-edit="starts_at" />
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label mb-1 small">Ends (optional)</label>
+              <input type="datetime-local" class="form-control form-control-sm" data-edit="ends_at" />
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 d-flex align-items-center gap-2 mt-1">
+          <button class="btn btn-sm btn-primary" data-action="save" data-id="${postId}">Save</button>
+          <button class="btn btn-sm btn-outline-secondary" data-action="cancel" data-id="${postId}">Cancel</button>
+          <span class="text-muted small" data-edit="msg"></span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const typeSel = card.querySelector('[data-edit="type"]');
+  const topicSel = card.querySelector('[data-edit="topic"]');
+  const titleIn = card.querySelector('[data-edit="title"]');
+  const bodyIn = card.querySelector('[data-edit="body"]');
+  const eventRow = card.querySelector('[data-edit="eventRow"]');
+  const startsIn = card.querySelector('[data-edit="starts_at"]');
+  const endsIn = card.querySelector('[data-edit="ends_at"]');
+
+  if (typeSel) typeSel.value = post.type || "general";
+  if (topicSel) topicSel.value = post.topic || "everyday";
+  if (titleIn) titleIn.value = post.title || "";
+  if (bodyIn) bodyIn.value = post.body || "";
+  if (startsIn) startsIn.value = toDatetimeLocalFromIso(post.starts_at);
+  if (endsIn) endsIn.value = toDatetimeLocalFromIso(post.ends_at);
+
+  typeSel?.addEventListener("change", () => {
+    const isEv = (typeSel.value || "general").toLowerCase() === "event";
+    eventRow?.classList.toggle("d-none", !isEv);
+    if (!isEv) {
+      if (startsIn) startsIn.value = "";
+      if (endsIn) endsIn.value = "";
+    }
+  });
+}
+
 // NOTE: post.tags are auto-generated in DB via trigger (see SQL)
 // NOTE: post creation must use RPC wtd_create_post (direct INSERT on posts is revoked)
 // NOTE: map can optionally show last N "positive reactions" via RPC wtd_recent_positive_posts(p_place_id, p_limit)
@@ -110,7 +250,7 @@ function buildMapsUrl(p) {
   const lat = p?.lat;
   const lng = p?.lng;
 
-  const label = (p?.venue_name || p?.title || "Location").trim();
+  const label = String(p?.venue_name || p?.title || "Location").trim();
   const addr = (p?.address_text || "").trim();
 
   // If we have coordinates, use them (best)
@@ -184,16 +324,11 @@ paEdit?.addEventListener("click", () => {
   const post = paContext?.post;
   if (!post) return;
   // reuse your existing inline editor flow by simulating edit
-  // simplest: just call renderPosts and then trigger edit via query
-  // better: factor edit flow into a function. For now:
   const inst = postActionsModalEl
     ? window.bootstrap?.Modal?.getInstance(postActionsModalEl)
     : null;
   inst?.hide();
-  // find the post card and click its edit button if present
-  document
-    .querySelector(`button[data-action="edit"][data-id="${post.id}"]`)
-    ?.click();
+  startInlineEdit(post.id);
 });
 
 paDelete?.addEventListener("click", async () => {
@@ -317,98 +452,7 @@ postsEl?.addEventListener("click", async (e) => {
   }
 
   if (action === "edit") {
-    // Render inline editor into this card
-    const card = btn.closest(".card");
-    if (!card) return;
-
-    const isEvent = (post.type || "general").toLowerCase() === "event";
-
-    card.innerHTML = `
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start gap-2">
-          <div class="fw-semibold">Edit your post</div>
-          <div class="text-muted small">Score: ${post.score ?? 0}</div>
-        </div>
-
-        <div class="row g-2 mt-2">
-          <div class="col-12 col-md-3">
-            <select class="form-select form-select-sm" data-edit="type">
-              <option value="general">General</option>
-              <option value="advice">Advice</option>
-              <option value="event">Event</option>
-              <option value="alert">Alert</option>
-            </select>
-          </div>
-
-          <div class="col-12 col-md-3">
-            <select class="form-select form-select-sm" data-edit="topic">
-              <option value="everyday">Everyday</option>
-              <option value="food_drink">Food & Drink</option>
-              <option value="outdoors">Outdoors</option>
-              <option value="history">History</option>
-              <option value="events">Entertainment</option>
-              <option value="attractions">Attractions</option>
-              <option value="nightlife">Nightlife</option>
-              <option value="legends">Legends & Lore</option>
-            </select>
-          </div>
-
-          <div class="col-12 col-md-6">
-            <input class="form-control form-control-sm" data-edit="title" maxlength="120" />
-          </div>
-
-          <div class="col-12">
-            <textarea class="form-control form-control-sm" data-edit="body" rows="3"></textarea>
-          </div>
-
-          <div class="col-12 ${isEvent ? "" : "d-none"}" data-edit="eventRow">
-            <div class="row g-2">
-              <div class="col-12 col-md-6">
-                <label class="form-label mb-1 small">Starts</label>
-                <input type="datetime-local" class="form-control form-control-sm" data-edit="starts_at" />
-              </div>
-              <div class="col-12 col-md-6">
-                <label class="form-label mb-1 small">Ends (optional)</label>
-                <input type="datetime-local" class="form-control form-control-sm" data-edit="ends_at" />
-              </div>
-            </div>
-          </div>
-
-          <div class="col-12 d-flex align-items-center gap-2 mt-1">
-            <button class="btn btn-sm btn-primary" data-action="save" data-id="${postId}">Save</button>
-            <button class="btn btn-sm btn-outline-secondary" data-action="cancel" data-id="${postId}">Cancel</button>
-            <span class="text-muted small" data-edit="msg"></span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Fill values
-    const typeSel = card.querySelector('[data-edit="type"]');
-    const topicSel = card.querySelector('[data-edit="topic"]');
-    const titleIn = card.querySelector('[data-edit="title"]');
-    const bodyIn = card.querySelector('[data-edit="body"]');
-    const eventRow = card.querySelector('[data-edit="eventRow"]');
-    const startsIn = card.querySelector('[data-edit="starts_at"]');
-    const endsIn = card.querySelector('[data-edit="ends_at"]');
-
-    if (typeSel) typeSel.value = post.type || "general";
-    if (topicSel) topicSel.value = post.topic || "everyday";
-    if (titleIn) titleIn.value = post.title || "";
-    if (bodyIn) bodyIn.value = post.body || "";
-
-    if (startsIn) startsIn.value = toDatetimeLocalFromIso(post.starts_at);
-    if (endsIn) endsIn.value = toDatetimeLocalFromIso(post.ends_at);
-
-    // If user changes type, show/hide event inputs
-    typeSel?.addEventListener("change", () => {
-      const isEv = (typeSel.value || "general").toLowerCase() === "event";
-      eventRow?.classList.toggle("d-none", !isEv);
-      if (!isEv) {
-        if (startsIn) startsIn.value = "";
-        if (endsIn) endsIn.value = "";
-      }
-    });
+    startInlineEdit(postId);
 
     return;
   }
@@ -642,6 +686,73 @@ let ghTagPrefs = new Map(); // tag -> weight (learned)
 let ghTagPrefsLoadedForUser = null; // user id we loaded prefs for
 let ghEventId = null; // suggestion_events.id for the current shown suggestion (for open/close duration)
 
+// ----------------------------------------------------------
+// GH keyword-learning (LOCAL, deterministic)
+// Goal: even if DB tags are missing/weak, GH learns from text keywords.
+// Stored per (placeId, user|anon) in localStorage.
+// ----------------------------------------------------------
+const GH_KW_PREFS_V1 = "wtd_gh_kw_prefs_v1"; // { "<placeId>|<userOrAnon>": { tag: weight, ... } }
+let ghKwPrefs = new Map(); // tag -> weight
+
+function ghUserKey() {
+  return currentSession?.user?.id ? currentSession.user.id : "anon";
+}
+function ghKwStorageKey(placeId) {
+  return `${placeId}|${ghUserKey()}`;
+}
+function loadGhKwPrefs() {
+  ghKwPrefs = new Map();
+  if (!placeId) return;
+  try {
+    const raw = JSON.parse(localStorage.getItem(GH_KW_PREFS_V1) || "{}");
+    const key = ghKwStorageKey(placeId);
+    const obj = raw?.[key] || {};
+    Object.entries(obj).forEach(([k, v]) => {
+      ghKwPrefs.set(String(k), Number(v) || 0);
+    });
+  } catch {
+    ghKwPrefs = new Map();
+  }
+}
+function saveGhKwPrefs() {
+  if (!placeId) return;
+  try {
+    const raw = JSON.parse(localStorage.getItem(GH_KW_PREFS_V1) || "{}");
+    const key = ghKwStorageKey(placeId);
+    raw[key] = Object.fromEntries(Array.from(ghKwPrefs.entries()));
+    localStorage.setItem(GH_KW_PREFS_V1, JSON.stringify(raw));
+  } catch {}
+}
+function bump(map, key, delta) {
+  const k = String(key);
+  map.set(k, (Number(map.get(k)) || 0) + delta);
+}
+
+// Apply a learning update based on a user action.
+// Keep deltas small; this is a bias, not a hard rule.
+function learnFromAction(action, post) {
+  const feats = featureTagsForPost(post);
+  if (!feats.length) return;
+
+  // conservative deltas
+  const delta =
+    action === "yes"
+      ? +0.6
+      : action === "upvote"
+        ? +0.8
+        : action === "no"
+          ? -0.7
+          : action === "downvote"
+            ? -0.9
+            : action === "skip"
+              ? -0.1
+              : 0;
+  if (!delta) return;
+
+  feats.forEach((t) => bump(ghKwPrefs, t, delta));
+  saveGhKwPrefs();
+}
+
 if (ghDistance) {
   ghDistance.value = localStorage.getItem(GH_DISTANCE_KEY) || "near";
   ghDistance.addEventListener("change", async () => {
@@ -735,7 +846,7 @@ function readGeoCache() {
     const raw = localStorage.getItem(GEO_CACHE_KEY);
     if (!raw) return null;
     const x = JSON.parse(raw);
-    if (!x?.lat || !x?.lng || !x?.ts) return null;
+    if (x?.lat == null || x?.lng == null || !x?.ts) return null;
     if (Date.now() - x.ts > GEO_TTL_MS) return null;
     return { lat: x.lat, lng: x.lng };
   } catch {
@@ -945,12 +1056,11 @@ async function loadGhTagPrefs() {
 
 function matchesMode(post, mode) {
   const t = (post.type || "general").toLowerCase();
-  const topic = (post.topic || "").toLowerCase();
+  const topic = normTopic(post.topic);
 
   const text = `${post.title || ""} ${post.body || ""}`.toLowerCase();
-  const tags = Array.isArray(post.tags)
-    ? post.tags.map((x) => String(x).toLowerCase())
-    : [];
+  const tags = Array.isArray(post.tags) ? post.tags.map((x) => normTag(x)) : [];
+  const feats = featureTagsForPost(post); // includes keyword-derived tags
 
   // keyword fallback if topic missing
   const foodWords = [
@@ -1011,8 +1121,10 @@ function matchesMode(post, mode) {
   ];
 
   if (mode === "hungry") {
-    if (topic) return topic === "food_drink" || topic === "nightlife";
-    if (tags.includes("food")) return true;
+    // Topic is a strong signal, but not a veto.
+    if (topic === "food_drink" || topic === "nightlife") return true;
+    if (tags.includes("food") || tags.includes("food_drink")) return true;
+    if (feats.includes("food_drink")) return true; // keyword-inferred tags
     return foodWords.some((w) => text.includes(w));
   }
 
@@ -1029,8 +1141,21 @@ function matchesMode(post, mode) {
       ].includes(topic);
     if (
       tags.includes("music") ||
+      tags.includes("rock") ||
+      tags.includes("country") ||
+      tags.includes("hip_hop") ||
+      tags.includes("edm") ||
+      tags.includes("jazz") ||
+      tags.includes("rnb") ||
+      tags.includes("metal") ||
+      tags.includes("punk") ||
+      tags.includes("indie") ||
+      tags.includes("pop") ||
       tags.includes("comedy") ||
       tags.includes("outdoors") ||
+      tags.includes("hike") ||
+      tags.includes("trail") ||
+      tags.includes("park") ||
       tags.includes("festival") ||
       tags.includes("art") ||
       tags.includes("trivia") ||
@@ -1038,6 +1163,24 @@ function matchesMode(post, mode) {
       tags.includes("hiking") ||
       tags.includes("museum") ||
       tags.includes("arcade")
+    )
+      return true;
+    // keyword-derived tags count as bored-mode matches too
+    if (
+      feats.includes("events") ||
+      feats.includes("outdoors") ||
+      feats.includes("legends") ||
+      feats.includes("music") ||
+      feats.includes("rock") ||
+      feats.includes("country") ||
+      feats.includes("hip_hop") ||
+      feats.includes("edm") ||
+      feats.includes("jazz") ||
+      feats.includes("rnb") ||
+      feats.includes("metal") ||
+      feats.includes("punk") ||
+      feats.includes("indie") ||
+      feats.includes("pop")
     )
       return true;
     // keyword/phrase fallback if topic/tags missing
@@ -1048,14 +1191,261 @@ function matchesMode(post, mode) {
   return true; // idk
 }
 
+function normTopic(raw) {
+  let t = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (!t) return "";
+  // collapse separators: "Food & Drink" / "food-drink" / "food drink" -> "food_drink"
+  t = t
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const alias = {
+    food: "food_drink",
+    foodanddrink: "food_drink",
+    food_drinks: "food_drink",
+    entertainment: "events",
+    legend: "legends",
+    lore: "legends",
+    outdoor: "outdoors",
+    parks: "outdoors",
+    hikes: "outdoors",
+    hiking: "outdoors",
+    trails: "outdoors",
+  };
+  return alias[t] || t;
+}
+
+// ----------------------------------------------------------
+// Feature tags (topic + DB tags + keyword/phrase inference)
+// Used for: learning/scoring + mode matching + UI fallback display
+// ----------------------------------------------------------
+function featureTagsForPost(p) {
+  const out = new Set();
+  const topic = normTopic(p?.topic);
+  if (topic) out.add(topic);
+
+  const tags = Array.isArray(p?.tags)
+    ? p.tags.map(normTag).filter(Boolean)
+    : [];
+  tags.forEach((t) => out.add(t));
+
+  const text = `${p?.title || ""} ${p?.body || ""}`.toLowerCase();
+
+  // Helper: phrase match with word-boundaries for single words, plain includes for phrases
+  const has = (ph) => {
+    if (!ph) return false;
+    const s = String(ph).toLowerCase();
+    if (s.includes(" ")) return text.includes(s);
+    return new RegExp(
+      `\\b${s.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`,
+      "i",
+    ).test(text);
+  };
+
+  // ===== FOOD / DRINK =====
+  const foodTriggers = [
+    "eat",
+    "food",
+    "restaurant",
+    "dinner",
+    "lunch",
+    "breakfast",
+    "brunch",
+    "bar",
+    "pub",
+    "happy hour",
+    "reservation",
+    "takeout",
+    "delivery",
+    "menu",
+  ];
+  const cuisineMap = [
+    ["thai", ["thai"]],
+    ["mexican", ["mexican", "taco", "tacos", "taqueria"]],
+    ["italian", ["italian", "pasta", "trattoria"]],
+    ["japanese", ["japanese", "sushi", "ramen", "izakaya"]],
+    ["chinese", ["chinese", "dim sum"]],
+    ["indian", ["indian", "curry", "tandoori"]],
+    ["korean", ["korean", "k-bbq", "bbq korean"]],
+    ["vietnamese", ["vietnamese", "pho", "banh mi"]],
+    ["mediterranean", ["mediterranean", "greek", "falafel", "shawarma"]],
+    ["bbq", ["bbq", "barbecue", "smoked", "brisket"]],
+    ["seafood", ["seafood", "oyster", "shrimp", "lobster", "crab"]],
+  ];
+  const foodTypeMap = [
+    ["coffee", ["coffee", "espresso", "cafe", "latte", "cappuccino"]],
+    ["bakery", ["bakery", "pastry", "croissant", "donut", "doughnut"]],
+    ["dessert", ["dessert", "ice cream", "gelato", "froyo", "milkshake"]],
+    ["pizza", ["pizza", "pizzeria"]],
+    ["sushi", ["sushi"]],
+    ["ramen", ["ramen"]],
+    ["burgers", ["burger", "burgers"]],
+    ["tacos", ["taco", "tacos"]],
+    ["brunch", ["brunch"]],
+    ["steak", ["steak", "steakhouse"]],
+    ["wings", ["wings"]],
+    ["brewery", ["brewery", "taproom", "craft beer"]],
+    ["cocktails", ["cocktail", "cocktails", "mixology"]],
+  ];
+  let matchedCuisine = null;
+  let matchedFoodType = null;
+  for (const [tag, phrases] of cuisineMap) {
+    if (phrases.some(has)) {
+      matchedCuisine = tag;
+      break;
+    }
+  }
+  for (const [tag, phrases] of foodTypeMap) {
+    if (phrases.some(has)) {
+      matchedFoodType = tag;
+      break;
+    }
+  }
+  const isFood =
+    topic === "food_drink" ||
+    topic === "nightlife" ||
+    foodTriggers.some(has) ||
+    matchedCuisine ||
+    matchedFoodType;
+  if (isFood) {
+    out.add("food_drink");
+    if (matchedCuisine) out.add(matchedCuisine);
+    if (matchedFoodType) out.add(matchedFoodType);
+  }
+
+  // ===== OUTDOORS =====
+  const outdoorsMap = [
+    ["hiking", ["hike", "hiking", "trailhead", "trail"]],
+    ["running", ["run", "running", "jog", "5k", "10k", "marathon"]],
+    ["walking", ["walk", "walking", "stroll"]],
+    ["biking", ["bike", "biking", "cycling", "cyclist"]],
+    ["camping", ["camp", "camping", "campsite"]],
+    ["fishing", ["fish", "fishing", "angler", "catfish", "bass"]],
+    ["kayaking", ["kayak", "kayaking", "canoe", "canoeing", "paddle"]],
+    ["nature", ["park", "state park", "lake", "river", "arboretum", "prairie"]],
+  ];
+  let matchedOutdoors = null;
+  for (const [tag, phrases] of outdoorsMap) {
+    if (phrases.some(has)) {
+      matchedOutdoors = tag;
+      break;
+    }
+  }
+  if (topic === "outdoors" || matchedOutdoors) {
+    out.add("outdoors");
+    if (matchedOutdoors) out.add(matchedOutdoors);
+  }
+
+  // ===== EVENTS =====
+  const eventsMap = [
+    ["live_music", ["live music", "concert", "show", "gig", "band"]],
+    ["comedy", ["comedy", "standup", "stand-up", "improv"]],
+    ["karaoke", ["karaoke"]],
+    ["trivia", ["trivia", "quiz night"]],
+    ["festival", ["festival", "fair", "parade", "block party"]],
+    ["market", ["farmers market", "makers market", "pop-up market"]],
+  ];
+  let matchedEvent = null;
+  for (const [tag, phrases] of eventsMap) {
+    if (phrases.some(has)) {
+      matchedEvent = tag;
+      break;
+    }
+  }
+  if (
+    topic === "events" ||
+    (p?.type || "").toLowerCase() === "event" ||
+    matchedEvent
+  ) {
+    out.add("events");
+    if (matchedEvent) out.add(matchedEvent);
+  }
+
+  // ===== LEGENDS =====
+  const legendsMap = [
+    ["haunted", ["haunted", "ghost", "ghosts", "apparition"]],
+    ["paranormal", ["paranormal", "spooky", "investigation"]],
+    ["ufo", ["ufo", "ufos", "alien", "aliens"]],
+    ["cryptid", ["cryptid", "bigfoot", "mothman"]],
+  ];
+  let matchedLegend = null;
+  for (const [tag, phrases] of legendsMap) {
+    if (phrases.some(has)) {
+      matchedLegend = tag;
+      break;
+    }
+  }
+  if (topic === "legends" || matchedLegend) {
+    out.add("legends");
+    if (matchedLegend) out.add(matchedLegend);
+  }
+
+  // ===== NIGHTLIFE =====
+  const nightlifeMap = [
+    ["cocktail_bar", ["cocktail bar", "speakeasy", "mixology"]],
+    ["dive_bar", ["dive bar"]],
+    ["club", ["club", "dance floor"]],
+    ["late_night_food", ["late night", "open late", "kitchen open"]],
+  ];
+  let matchedNightlife = null;
+  for (const [tag, phrases] of nightlifeMap) {
+    if (phrases.some(has)) {
+      matchedNightlife = tag;
+      break;
+    }
+  }
+  if (topic === "nightlife" || matchedNightlife) {
+    out.add("nightlife");
+    if (matchedNightlife) out.add(matchedNightlife);
+  }
+
+  return Array.from(out);
+}
+
+function normTag(raw) {
+  let t = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (!t) return "";
+  t = t.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  // unify common ones + normalize "genre" tags so UI shows obvious tags
+  const alias = {
+    foodanddrink: "food_drink",
+    food_and_drink: "food_drink",
+    outdoor: "outdoors",
+    legend: "legends",
+
+    // music/genre aliases seen in older tag sets
+    rock_music: "rock",
+    country_music: "country",
+    hiphop: "hip_hop",
+    hip_hop_music: "hip_hop",
+    rap_music: "hip_hop",
+    r_b: "rnb",
+    rnb_music: "rnb",
+    electronic_music: "edm",
+    edm_music: "edm",
+    metal_music: "metal",
+    punk_music: "punk",
+    indie_music: "indie",
+    pop_music: "pop",
+    jazz_music: "jazz",
+    blues_music: "blues",
+  };
+  return alias[t] || t;
+}
+
 function ghPersonalScore(p) {
   // base score (from v_post_scores)
   let s = Number(p.score ?? 0) || 0;
-  // add preference weights for tags (small bias)
-  const tags = Array.isArray(p.tags) ? p.tags : [];
-  for (const tag of tags) {
-    const w = ghTagPrefs.get(String(tag)) || 0;
-    s += w;
+  // add preference weights for tags + inferred feature tags (small bias)
+  const feats = featureTagsForPost(p);
+  for (const tag of feats) {
+    const k = String(tag);
+    s += ghTagPrefs.get(k) || 0;
+    s += ghKwPrefs.get(k) || 0; // ✅ local keyword-learning applies immediately
   }
   return s;
 }
@@ -1067,10 +1457,12 @@ function ghPersonalScore(p) {
 // ----------------------------------------------------------
 const GH_HARD_AVOID_THRESHOLD = -2;
 function hasHardAvoidTag(post) {
-  const tags = Array.isArray(post?.tags) ? post.tags : [];
-  return tags.some(
-    (t) => (ghTagPrefs.get(String(t)) || 0) <= GH_HARD_AVOID_THRESHOLD,
-  );
+  const feats = featureTagsForPost(post);
+  return feats.some((t) => {
+    const k = String(t);
+    const w = (ghTagPrefs.get(k) || 0) + (ghKwPrefs.get(k) || 0);
+    return w <= GH_HARD_AVOID_THRESHOLD;
+  });
 }
 
 function pickNextSuggestion(posts) {
@@ -1089,7 +1481,7 @@ function pickNextSuggestion(posts) {
   // ✅ If "idk", avoid showing the same topic twice in a row
   if (ghMode === "idk" && ghLastTopic) {
     const alt = candidates.filter(
-      (p) => (p.topic || "everyday") !== ghLastTopic,
+      (p) => (normTopic(p.topic) || "everyday") !== ghLastTopic,
     );
     if (alt.length) candidates = alt;
   }
@@ -1134,6 +1526,50 @@ async function showNextSuggestion() {
     }
   }
 
+  // Hydrate suggestion with full fields so keyword tags work (old posts + skinny RPC rows).
+  if (next?.id) {
+    if (!lastPosts?.length) await loadPosts();
+    const local = (lastPosts || []).find((p) => p.id === next.id);
+    if (local) {
+      const hasTags = Array.isArray(next.tags)
+        ? next.tags.length > 0
+        : next.tags != null;
+      if (!hasTags) next.tags = local.tags;
+      if (!next.topic) next.topic = local.topic;
+      if (!next.title) next.title = local.title;
+      if (!next.body) next.body = local.body;
+      if (next.image_url == null) next.image_url = local.image_url;
+      if (next.lat == null) next.lat = local.lat;
+      if (next.lng == null) next.lng = local.lng;
+      if (next.venue_name == null) next.venue_name = local.venue_name;
+      if (next.address_text == null) next.address_text = local.address_text;
+    } else {
+      // Fallback: fetch the full post row by id (covers distance-filter mismatch + hidden/blocked filtered out).
+      const { data: full, error: fullErr } = await supabase
+        .from("v_post_scores")
+        .select(
+          "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng, image_url",
+        )
+        .eq("id", next.id)
+        .maybeSingle();
+      if (!fullErr && full) next = { ...full, ...next }; // keep any server-only fields too
+    }
+  }
+
+  // Client-side sanity: if server returns something off-mode, discard and fallback.
+  if (next && ghMode && ghMode !== "idk" && !matchesMode(next, ghMode)) {
+    console.warn("GH: server suggestion failed mode check; falling back.", {
+      ghMode,
+      id: next.id,
+      topic: next.topic,
+      tags: next.tags,
+      type: next.type,
+    });
+    next = null;
+  }
+
+  // (Removed duplicate hydration block — you already hydrate above.)
+
   // Fallback (anon or RPC error): local pick from loaded posts
   if (!next) {
     if (!lastPosts?.length) await loadPosts();
@@ -1151,7 +1587,7 @@ async function showNextSuggestion() {
 
   ghCurrent = next;
   ghShownIds.add(next.id);
-  ghLastTopic = next.topic || "everyday";
+  ghLastTopic = normTopic(next.topic) || "everyday";
 
   ghWrap?.classList.remove("d-none");
   ghWhy.textContent = `Because you said you’re ${modeLabel(ghMode)} · ${timeBucket()}`;
@@ -1169,34 +1605,60 @@ async function showNextSuggestion() {
     next.distance_m != null ? fmtMilesFromMeters(next.distance_m) : "";
   const distPart = distText ? ` · ${distText} away` : "";
 
-  const tagText =
-    Array.isArray(next.tags) && next.tags.length
-      ? ` · Tags: ${next.tags.join(", ")}`
-      : "";
+  console.log("GH tag debug", {
+    id: next?.id,
+    topic: next?.topic,
+    tags: next?.tags,
+    title: next?.title,
+    bodyLen: (next?.body || "").length,
+    rawTags: Array.isArray(next?.tags)
+      ? next.tags.map(normTag).filter(Boolean)
+      : [],
+    inferred: featureTagsForPost(next),
+    inLastPosts: (lastPosts || []).some((p) => p.id === next?.id),
+  });
+
+  // Tags display: merge DB tags + inferred tags (+ topic), de-dupe
+  const rawTags = Array.isArray(next.tags)
+    ? next.tags.map(normTag).filter(Boolean)
+    : [];
+
+  const topicTag = normTopic(next.topic) || "";
+  const inferredAll = featureTagsForPost(next).map(normTag).filter(Boolean);
+
+  // include topicTag explicitly so it shows even when rawTags exist
+  const merged = [...rawTags, ...inferredAll, ...(topicTag ? [topicTag] : [])];
+
+  const seen = new Set();
+  const showTags = merged.filter((t) => {
+    if (!t) return false;
+    if (seen.has(t)) return false;
+    seen.add(t);
+    return true;
+  });
+
+  const tagText = showTags.length ? `Tags: ${showTags.join(", ")}` : "";
+
   ghMeta.innerHTML = `
-  <div class=" d-flex flex-row align-items-center justify-content-end text-end" >
-
-  <div class="d-flex align-items-center gap-1 post-score mt-1 heart">
-      <i class="bi bi-heart-fill text-danger"></i>
-      <span class="badge bg-light text-dark border">${next.score ?? 0}</span>
-    </div>
-    <button
-      class="btn btn-sm btn-link text-muted p-0 sug"
-      type="button"
-      data-action="more"
-      data-id="${next.id}"
-      aria-label="Post options"
-      title="Options"
-    >
-      <i class="bi bi-three-dots-vertical"></i>
-    </button>
-
-    
-  </div>
-
-  ${distPart ? `<span class="text-muted small">${distPart}</span>` : ""}
-  ${tagText ? `<span class="text-muted small">${tagText}</span>` : ""}
-`;
+    <span class="d-flex align-items-center justify-content-end gap-2 text-end">
+      <span class="d-flex align-items-center gap-1 post-score mt-1 heart">
+        <i class="bi bi-heart-fill text-danger"></i>
+        <span class="badge bg-light text-dark border">${next.score ?? 0}</span>
+      </span>
+      <button
+        class="btn btn-sm btn-link text-muted p-0 sug"
+        type="button"
+        data-action="more"
+        data-id="${next.id}"
+        aria-label="Post options"
+        title="Options"
+      >
+        <i class="bi bi-three-dots-vertical"></i>
+      </button>
+    </span>
+    ${distPart ? `<span class="d-block text-muted small text-end">${escapeHtml(distPart)}</span>` : ""}
+    ${tagText ? `<span class="d-block text-muted small text-end">${escapeHtml(tagText)}</span>` : ""}
+  `;
 
   // ✅ Add “Map it” to suggestions (only when we have coords/address)
   if (ghLinks) {
@@ -1245,6 +1707,8 @@ document.addEventListener("visibilitychange", async () => {
       if (session) createPostCard?.classList.remove("d-none");
       else createPostCard?.classList.add("d-none");
 
+      // reload keyword prefs because user key changes anon<->user
+      loadGhKwPrefs();
       await refreshFollowUI();
       await loadGhTagPrefs();
       await loadPosts();
@@ -1314,6 +1778,7 @@ document.addEventListener("visibilitychange", async () => {
   }
 
   // GH should look "ready" on first paint even before user taps a mode
+  loadGhKwPrefs();
   renderGhEmpty();
 
   // Filters
@@ -1847,6 +2312,26 @@ function renderPosts(posts) {
   visible.forEach((p) => {
     const div = document.createElement("div");
     div.className = "card sheet post-card mb-3";
+    div.setAttribute("data-post-id", p.id);
+
+    // Tags for display (DB tags + inferred tags), de-duped
+    const rawTags = Array.isArray(p.tags)
+      ? p.tags.map(normTag).filter(Boolean)
+      : [];
+    const inferred = featureTagsForPost(p).map(normTag).filter(Boolean);
+    const topicTag = normTopic(p.topic) || "";
+    const mergedTags = [
+      ...rawTags,
+      ...inferred,
+      ...(topicTag ? [topicTag] : []),
+    ];
+    const seenTag = new Set();
+    const showTags = mergedTags.filter(
+      (t) => t && !seenTag.has(t) && (seenTag.add(t), true),
+    );
+    const tagsHtml = showTags.length
+      ? `<div class="text-muted small mb-2">Tags: ${escapeHtml(showTags.join(", "))}</div>`
+      : "";
 
     const isEvent = (p.type || "general").toLowerCase() === "event";
     const whenText = isEvent ? formatEventRange(p.starts_at, p.ends_at) : "";
@@ -1903,7 +2388,8 @@ function renderPosts(posts) {
 
         </div>
 
-        <div class="post-text mb-3">${escapeHtml(p.body || "")}</div>
+        <div class="post-text mb-2">${escapeHtml(p.body || "")}</div>
+        ${tagsHtml}
 
 <div class="d-flex flex-wrap gap-2 align-items-center">
   <button class="btn btn-sm wtd-iconbtn" onclick="vote('${p.id}', 1)">👍</button>
@@ -1915,7 +2401,8 @@ function renderPosts(posts) {
       : ``
   }
 
-  <div class="ms-auto"></div
+  <div class="ms-auto"></div>
+</div>
 </div>
 
     `;
@@ -1935,7 +2422,9 @@ function renderPosts(posts) {
   }
 }
 
-function topicBadge(topic) {
+// (Removed stray top-level tag code that referenced `p` and crashed the script.)
+
+(function topicBadge(topic) {
   const t = (topic || "everyday").toLowerCase();
   const map = {
     food_drink: { label: "Food & Drink" },
@@ -1949,7 +2438,7 @@ function topicBadge(topic) {
   };
   const x = map[t] || map.everyday;
   return `<span class="wtd-badge wtd-topic-${t}">${escapeHtml(x.label)}</span>`;
-}
+});
 
 function typeBadge(type) {
   const t = (type || "general").toLowerCase();
@@ -2010,6 +2499,7 @@ modeButtons.forEach((btn) => {
 ghYes?.addEventListener("click", async () => {
   if (!ghCurrent) return;
   disableGhActions(true);
+  learnFromAction("yes", ghCurrent);
   await logSuggestion("yes", ghCurrent);
   // Update prefs so next picks adapt immediately
   await loadGhTagPrefs();
@@ -2019,6 +2509,7 @@ ghYes?.addEventListener("click", async () => {
 ghNo?.addEventListener("click", async () => {
   if (!ghCurrent) return;
   disableGhActions(true);
+  learnFromAction("no", ghCurrent);
   await logSuggestion("no", ghCurrent);
   await loadGhTagPrefs();
   await showNextSuggestion();
@@ -2027,6 +2518,7 @@ ghNo?.addEventListener("click", async () => {
 ghSkip?.addEventListener("click", async () => {
   if (!ghCurrent) return;
   disableGhActions(true);
+  learnFromAction("skip", ghCurrent);
   await logSuggestion("skip", ghCurrent);
   await showNextSuggestion();
 });
@@ -2035,6 +2527,7 @@ ghSkip?.addEventListener("click", async () => {
 ghUp?.addEventListener("click", async () => {
   if (!ghCurrent) return;
   ghShownIds.add(ghCurrent.id);
+  learnFromAction("upvote", ghCurrent);
   await logSuggestion("upvote", ghCurrent);
   await vote(ghCurrent.id, 1);
   await loadGhTagPrefs();
@@ -2045,6 +2538,7 @@ ghUp?.addEventListener("click", async () => {
 ghDown?.addEventListener("click", async () => {
   if (!ghCurrent) return;
   ghShownIds.add(ghCurrent.id);
+  learnFromAction("downvote", ghCurrent);
   await logSuggestion("downvote", ghCurrent);
   await vote(ghCurrent.id, -1);
   await loadGhTagPrefs();
