@@ -1863,10 +1863,10 @@ function renderPosts(posts) {
 
     div.innerHTML = `
   <div class="card-body post-body">
-    <div class="d-flex flex-row justify-content-between align-items-start">
+    <div class="row d-flex flex-row justify-content-between align-items-start">
     <img
       src="${escapeHtml(p.image_url || topicImage(p.topic))}"
-      class="post-topic-img"
+      class="col-11 post-topic-img"
       alt=""
       loading="lazy"
     />
@@ -1875,7 +1875,7 @@ function renderPosts(posts) {
       isOwner(p)
         ? `
           <button
-            class="btn btn-sm btn-link text-muted p-0 post-more"
+            class="col-1 btn btn-sm btn-link text-muted p-0 post-more"
             type="button"
             data-action="more"
             data-id="${p.id}"
