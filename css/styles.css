@@ -324,8 +324,9 @@ section .mood-btn {
    Posts — theme upgrade
    ========================================== */
 .post-more {
-  top: 0px;
-  right: 0px;
+  position: absolute;
+  top: 15px;
+  right: 8px;
   line-height: 1;
 }
 
@@ -356,6 +357,7 @@ section .mood-btn {
 
 .post-card {
   overflow: hidden;
+  position: relative;
 }
 
 .post-body {

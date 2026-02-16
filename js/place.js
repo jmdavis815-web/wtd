@@ -1862,7 +1862,7 @@ function renderPosts(posts) {
       : "";
 
     div.innerHTML = `
-  <div class="card-body post-body">
+  <div class="card-body post-body container-fluid">
     <div class="row d-flex flex-row justify-content-between align-items-start">
     <img
       src="${escapeHtml(p.image_url || topicImage(p.topic))}"
