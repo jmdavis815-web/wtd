@@ -1174,7 +1174,7 @@ async function showNextSuggestion() {
       ? ` · Tags: ${next.tags.join(", ")}`
       : "";
   ghMeta.innerHTML = `
-  <div class=" d-flex flex-row align-items-center" >
+  <div class=" d-flex flex-row align-items-center justify-content-end text-end" >
 
   <div class="d-flex align-items-center gap-1 post-score mt-1 heart">
       <i class="bi bi-heart-fill text-danger"></i>
