@@ -324,9 +324,8 @@ section .mood-btn {
    Posts — theme upgrade
    ========================================== */
 .post-more {
-  position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 0px;
+  right: 0px;
   line-height: 1;
 }
 

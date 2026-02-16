@@ -1862,7 +1862,15 @@ function renderPosts(posts) {
       : "";
 
     div.innerHTML = `
-  <div class="card-body post-body position-relative">
+  <div class="card-body post-body">
+    <div class="d-flex flex-row justify-content-between align-items-start">
+    <img
+      src="${escapeHtml(p.image_url || topicImage(p.topic))}"
+      class="post-topic-img"
+      alt=""
+      loading="lazy"
+    />
+
     ${
       isOwner(p)
         ? `
@@ -1879,13 +1887,7 @@ function renderPosts(posts) {
         `
         : ``
     }
-
-    <img
-      src="${escapeHtml(p.image_url || topicImage(p.topic))}"
-      class="post-topic-img"
-      alt=""
-      loading="lazy"
-    />
+      </div>
         <div class="d-flex justify-content-between align-items-start gap-2">
           <div>
             <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
