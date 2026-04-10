@@ -2289,12 +2289,14 @@ function renderPosts(posts) {
   if (filterHint) {
     const total = (posts || []).length;
     const baseCount = base.length;
-    const shown = list.length;
+    const shown = visible.length;
+    const remaining = Math.max(0, list.length - (browseOffset + visible.length));
     const parts = [];
     if (currentFilter === "all") parts.push(`${total} total`);
     else parts.push(`${baseCount} in filter`);
-    if (q) parts.push(`${shown} match${shown === 1 ? "" : "es"} search`);
-    else parts.push(`${shown} shown`);
+    if (q) parts.push(`${list.length} match${list.length === 1 ? "" : "es"} search`);
+    parts.push(`${shown} shown`);
+    if (remaining > 0) parts.push(`${remaining} more`);
     filterHint.textContent = parts.join(" · ");
   }
 
