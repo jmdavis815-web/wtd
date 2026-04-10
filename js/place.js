@@ -2424,7 +2424,7 @@ function renderPosts(posts) {
 
 // (Removed stray top-level tag code that referenced `p` and crashed the script.)
 
-(function topicBadge(topic) {
+function topicBadge(topic) {
   const t = (topic || "everyday").toLowerCase();
   const map = {
     food_drink: { label: "Food & Drink" },
@@ -2438,7 +2438,7 @@ function renderPosts(posts) {
   };
   const x = map[t] || map.everyday;
   return `<span class="wtd-badge wtd-topic-${t}">${escapeHtml(x.label)}</span>`;
-});
+}
 
 function typeBadge(type) {
   const t = (type || "general").toLowerCase();

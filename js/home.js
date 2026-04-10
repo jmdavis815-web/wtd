@@ -156,12 +156,12 @@
 
     const pattern = `%${query}%`;
 
-    // Search across name/city/region/country_code (works with your new schema)
+    // Search across name/region/country fields
     const { data, error } = await supabase
       .from("places")
       .select("id, name, region, country_code, admin1, country")
       .or(
-        `name.ilike.${pattern},city.ilike.${pattern},region.ilike.${pattern},country_code.ilike.${pattern}`,
+        `name.ilike.${pattern},region.ilike.${pattern},country_code.ilike.${pattern},country.ilike.${pattern}`,
       )
       .order("name")
       .limit(25);
