@@ -2067,65 +2067,23 @@ async function loadPosts() {
   postsEl.innerHTML = `<div class="text-muted">Loading…</div>`;
 
   const useLoc = localStorage.getItem(USE_LOC_KEY) !== "off";
+  // Browse should always load all posts for the place.
+  // Location is used only to annotate distance, not to exclude posts.
+  const resp = await supabase
+    .from("v_post_scores")
+    .select(
+      "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng, image_url",
+    )
+    .eq("place_id", placeId)
+    .order("score", { ascending: false });
 
-  const band = ghDistance?.value || "near";
-  const radius = useLoc ? radiusMetersForBand(band) : null;
+  data = resp.data;
+  error = resp.error;
 
-  let data, error;
-
-  // If user selects Any, don't use geo — just load all (existing behavior)
-  if (!radius) {
-    const resp = await supabase
-      .from("v_post_scores")
-      .select(
-        "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng, image_url",
-      )
-      .eq("place_id", placeId)
-      .order("score", { ascending: false });
-
-    data = resp.data;
-    error = resp.error;
-  } else {
-    // Ask for device location (cached)
-    const coords = await getDeviceCoords();
-
-    if (!coords) {
-      // Permission denied / unavailable → fallback to normal list
-      const resp = await supabase
-        .from("v_post_scores")
-        .select(
-          "id, place_id, author_id, type, topic, title, body, tags, score, starts_at, ends_at, venue_name, address_text, lat, lng, image_url",
-        )
-        .eq("place_id", placeId)
-        .order("score", { ascending: false });
-
-      data = resp.data;
-      error = resp.error;
-
-      // Optional: hint (non-blocking)
-      if (ghHint) {
-        ghHint.textContent =
-          "Enable location to filter by distance (or set Distance to Any).";
-      }
-    } else {
-      // Use RPC: only posts with coords within radius
-      const resp = await supabase.rpc("wtd_posts_near", {
-        p_place_id: placeId,
-        p_lat: coords.lat,
-        p_lng: coords.lng,
-        p_radius_m: radius,
-        p_limit: 200,
-      });
-
-      data = resp.data;
-      error = resp.error;
-
-      if (ghHint) {
-        ghHint.textContent = currentSession
-          ? "Learning from your Yes/No."
-          : "Log in to personalize suggestions.";
-      }
-    }
+  if (ghHint) {
+    ghHint.textContent = currentSession
+      ? "Learning from your Yes/No."
+      : "Log in to personalize suggestions.";
   }
 
   if (error) {
